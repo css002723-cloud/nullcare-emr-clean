@@ -116,5 +116,7 @@ class UsersSeeder extends Seeder
                 'status' => 'active',
             ]
         );
+
+        echo "\n✅ Test users created successfully!\n";
     }
 }
