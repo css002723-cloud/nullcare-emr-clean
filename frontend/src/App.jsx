@@ -25,35 +25,35 @@ export default function App() {
   return (
     <BrowserRouter>
       <ThemeProvider>
-      <AuthProvider>
-        <Routes>
-          <Route path="/login" element={<Login />} />
-          <Route path="/" element={<Navigate to="/dashboard" replace />} />
+        <AuthProvider>
+          <Routes>
+            <Route path="/login" element={<Login />} />
+            <Route path="/" element={<Navigate to="/dashboard" replace />} />
 
-          <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
+            <Route path="/dashboard" element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
 
-          <Route path="/patients" element={<ProtectedRoute><Patients /></ProtectedRoute>} />
-          <Route path="/patients/:id" element={<ProtectedRoute><PatientDetail /></ProtectedRoute>} />
+            <Route path="/patients" element={<ProtectedRoute><Patients /></ProtectedRoute>} />
+            <Route path="/patients/:id" element={<ProtectedRoute><PatientDetail /></ProtectedRoute>} />
 
-          <Route path="/reception" element={<ProtectedRoute roles={["reception", "nurse"]}><Reception /></ProtectedRoute>} />
-          <Route path="/triage" element={<ProtectedRoute roles={["nurse", "doctor"]}><Triage /></ProtectedRoute>} />
-          <Route path="/consultation" element={<ProtectedRoute roles={["doctor"]}><Consultation /></ProtectedRoute>} />
-          <Route path="/encounters/:id" element={<ProtectedRoute><EncounterWorkspace /></ProtectedRoute>} />
+            <Route path="/reception" element={<ProtectedRoute roles={["receptionist", "nurse"]}><Reception /></ProtectedRoute>} />
+            <Route path="/triage" element={<ProtectedRoute roles={["nurse", "doctor"]}><Triage /></ProtectedRoute>} />
+            <Route path="/consultation" element={<ProtectedRoute roles={["doctor"]}><Consultation /></ProtectedRoute>} />
+            <Route path="/encounters/:id" element={<ProtectedRoute><EncounterWorkspace /></ProtectedRoute>} />
 
-          <Route path="/laboratory" element={<ProtectedRoute roles={["lab_tech", "doctor", "nurse"]}><Laboratory /></ProtectedRoute>} />
-          <Route path="/imaging" element={<ProtectedRoute roles={["radiologist", "doctor"]}><Imaging /></ProtectedRoute>} />
-          <Route path="/pharmacy" element={<ProtectedRoute roles={["pharmacist", "doctor"]}><Pharmacy /></ProtectedRoute>} />
-          <Route path="/wards" element={<ProtectedRoute roles={["nurse", "doctor"]}><Wards /></ProtectedRoute>} />
-          <Route path="/dialysis" element={<ProtectedRoute roles={["dialysis_tech", "doctor", "nurse"]}><Dialysis /></ProtectedRoute>} />
-          <Route path="/billing" element={<ProtectedRoute roles={["billing"]}><Billing /></ProtectedRoute>} />
-          <Route path="/research" element={<ProtectedRoute roles={["records_officer"]}><Research /></ProtectedRoute>} />
+            <Route path="/laboratory" element={<ProtectedRoute roles={["lab_tech", "doctor", "nurse"]}><Laboratory /></ProtectedRoute>} />
+            <Route path="/imaging" element={<ProtectedRoute roles={["radiologist", "doctor"]}><Imaging /></ProtectedRoute>} />
+            <Route path="/pharmacy" element={<ProtectedRoute roles={["pharmacist", "doctor"]}><Pharmacy /></ProtectedRoute>} />
+            <Route path="/wards" element={<ProtectedRoute roles={["nurse", "doctor"]}><Wards /></ProtectedRoute>} />
+            <Route path="/dialysis" element={<ProtectedRoute roles={["dialysis_tech", "doctor", "nurse"]}><Dialysis /></ProtectedRoute>} />
+            <Route path="/billing" element={<ProtectedRoute roles={["billing"]}><Billing /></ProtectedRoute>} />
+            <Route path="/research" element={<ProtectedRoute roles={["records_officer"]}><Research /></ProtectedRoute>} />
 
-          <Route path="/admin/users" element={<ProtectedRoute roles={["admin"]}><AdminUsers /></ProtectedRoute>} />
-          <Route path="/admin/audit" element={<ProtectedRoute roles={["admin"]}><AdminAudit /></ProtectedRoute>} />
+            <Route path="/admin/users" element={<ProtectedRoute roles={["admin"]}><AdminUsers /></ProtectedRoute>} />
+            <Route path="/admin/audit" element={<ProtectedRoute roles={["admin"]}><AdminAudit /></ProtectedRoute>} />
 
-          <Route path="*" element={<Navigate to="/dashboard" replace />} />
-        </Routes>
-      </AuthProvider>
+            <Route path="*" element={<Navigate to="/dashboard" replace />} />
+          </Routes>
+        </AuthProvider>
       </ThemeProvider>
     </BrowserRouter>
   );
