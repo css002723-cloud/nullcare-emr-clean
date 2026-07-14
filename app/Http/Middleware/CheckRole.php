@@ -4,28 +4,21 @@ namespace App\Http\Middleware;
 
 use Closure;
 use Illuminate\Http\Request;
-use Symfony\Component\HttpFoundation\Response;
 
 class CheckRole
 {
-    /**
-     * Usage in routes: ->middleware('role:doctor,nurse')
-     * Allows any of the listed roles through; blocks everyone else with 403.
-     */
-    public function handle(Request $request, Closure $next, string ...$roles): Response
+    public function handle(Request $request, Closure $next, ...$roles)
     {
         $user = $request->user();
 
-        if (! $user) {
-            return response()->json(['message' => 'Unauthenticated.'], 401);
+        if (!$user) {
+            return response()->json(['message' => 'Unauthenticated'], 401);
         }
 
-        $user->loadMissing('role');
+        $userRole = $user->role?->name;
 
-        if (! in_array($user->role->name, $roles, true)) {
-            return response()->json([
-                'message' => 'You do not have permission to perform this action.',
-            ], 403);
+        if (!in_array($userRole, $roles)) {
+            return response()->json(['message' => 'Unauthorized. Required role: ' . implode(', ', $roles)], 403);
         }
 
         return $next($request);

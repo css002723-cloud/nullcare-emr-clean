@@ -8,44 +8,46 @@ class StorePatientRequest extends FormRequest
 {
     public function authorize(): bool
     {
-        return true; // route-level 'role' middleware handles access control
+        return true;
     }
 
     public function rules(): array
     {
         return [
-            'national_id' => ['nullable', 'string', 'max:30'],
-            'first_name' => ['required', 'string', 'max:100'],
-            'last_name' => ['required', 'string', 'max:100'],
-            'gender' => ['required', 'in:male,female,other'],
-            'date_of_birth' => ['nullable', 'date', 'before_or_equal:today'],
-            'age_estimate' => ['nullable', 'integer', 'min:0', 'max:150'],
-            'phone' => ['nullable', 'string', 'max:20'],
-            'email' => ['nullable', 'email', 'max:150'],
-            'address' => ['nullable', 'string', 'max:255'],
-            'village' => ['nullable', 'string', 'max:100'],
-            'traditional_authority' => ['nullable', 'string', 'max:100'],
-            'district' => ['nullable', 'string', 'max:100'],
-            'occupation' => ['nullable', 'string', 'max:100'],
-            'patient_category' => ['required', 'in:outpatient,inpatient,student,staff,private,emergency,research'],
-            'guardian_name' => ['nullable', 'string', 'max:150'],
-            'guardian_phone' => ['nullable', 'string', 'max:20'],
-            'guardian_relationship' => ['nullable', 'string', 'max:50'],
-            'consent_care' => ['boolean'],
-            'consent_teaching' => ['boolean'],
-            'consent_research' => ['boolean'],
-            // set true once the receptionist has reviewed possible-duplicate
-            // candidates returned by GET /patients/check-duplicates and
-            // confirmed this is a genuinely new person
-            'confirm_new_patient' => ['sometimes', 'boolean'],
+            'national_id' => 'nullable|string|unique:patients,national_id',
+            'first_name' => 'required|string|max:100',
+            'last_name' => 'required|string|max:100',
+            'gender' => 'required|in:male,female,other',
+            'date_of_birth' => 'nullable|date|before:today',
+            'age_estimate' => 'nullable|integer|min:0|max:150',
+            'phone' => 'nullable|string|unique:patients,phone',
+            'email' => 'nullable|email|unique:patients,email',
+            'address' => 'nullable|string|max:255',
+            'village' => 'nullable|string|max:100',
+            'traditional_authority' => 'nullable|string|max:100',
+            'district' => 'nullable|string|max:100',
+            'occupation' => 'nullable|string|max:100',
+            'patient_category' => 'nullable|string|max:100',
+            'guardian_name' => 'nullable|string|max:100',
+            'guardian_phone' => 'nullable|string',
+            'guardian_relationship' => 'nullable|string|max:100',
+            'consent_care' => 'boolean',
+            'consent_teaching' => 'boolean',
+            'consent_research' => 'boolean',
+            'confirm_new_patient' => 'required|accepted',
         ];
     }
 
     public function messages(): array
     {
         return [
-            'gender.in' => 'Gender must be male, female, or other.',
-            'patient_category.in' => 'Please select a valid patient category.',
+            'first_name.required' => 'First name is required',
+            'last_name.required' => 'Last name is required',
+            'gender.required' => 'Gender is required',
+            'national_id.unique' => 'This national ID is already registered',
+            'phone.unique' => 'This phone number is already in use',
+            'email.unique' => 'This email is already in use',
+            'confirm_new_patient.required' => 'Please confirm this is a new patient',
         ];
     }
 }
