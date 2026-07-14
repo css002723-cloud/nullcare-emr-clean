@@ -1,0 +1,87 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --color-paper: 247 245 240;
+  --color-surface: 255 255 255;
+  --color-surface-alt: 233 241 240;
+  --color-ink: 27 43 41;
+  --color-line: 221 216 204;
+  --color-accent: 10 50 48;
+}
+
+[data-theme="dark"] {
+  --color-paper: 13 20 19;
+  --color-surface: 23 33 32;
+  --color-surface-alt: 22 42 40;
+  --color-ink: 230 235 232;
+  --color-line: 45 60 58;
+  --color-accent: 143 214 207;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+html, body, #root {
+  height: 100%;
+}
+
+body {
+  @apply bg-paper text-ink font-body antialiased;
+  transition: background-color 0.25s ease, color 0.25s ease;
+}
+
+/* Strong visible focus ring for keyboard navigation — accessibility requirement */
+:focus-visible {
+  outline: 3px solid #0F4C4A;
+  outline-offset: 2px;
+  border-radius: 2px;
+}
+[data-theme="dark"] :focus-visible {
+  outline-color: #6FA9A3;
+}
+
+::selection {
+  background: #D98E2F;
+  color: #1B2B29;
+}
+
+.mrn-mono {
+  font-family: "JetBrains Mono", ui-monospace, monospace;
+  letter-spacing: 0.02em;
+}
+
+/* Skip-to-content link for screen reader / keyboard users */
+.skip-link {
+  position: absolute;
+  left: -9999px;
+  top: 0;
+  background: #0F4C4A;
+  color: white;
+  padding: 0.75rem 1.25rem;
+  z-index: 100;
+  border-radius: 0 0 6px 0;
+}
+.skip-link:focus {
+  left: 0;
+}
+
+/* Slim, theme-aware scrollbars */
+::-webkit-scrollbar { width: 10px; height: 10px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: rgb(var(--color-line));
+  border-radius: 999px;
+}
+
+@media print {
+  .no-print { display: none !important; }
+}
+
