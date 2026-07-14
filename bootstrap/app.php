@@ -13,10 +13,14 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware) {
-    $middleware->alias([
-        'role' => \App\Http\Middleware\CheckRole::class,
-    ]);
-})
+        // Add CORS middleware to all requests
+        $middleware->append(\App\Http\Middleware\HandleCors::class);
+        
+        // Register role middleware alias
+        $middleware->alias([
+            'role' => \App\Http\Middleware\CheckRole::class,
+        ]);
+    })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(
             fn (Request $request) => $request->is('api/*'),
