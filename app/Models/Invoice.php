@@ -8,7 +8,7 @@ class Invoice extends Model
 {
     const UPDATED_AT = null;
 
-    protected $fillable = ['patient_id', 'encounter_id', 'total_amount', 'status', 'created_by'];
+    protected $fillable = ['patient_id', 'encounter_id', 'payer_type', 'total_amount', 'status', 'created_by'];
 
     public function patient()
     {

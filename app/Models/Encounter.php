@@ -7,9 +7,10 @@ use Illuminate\Database\Eloquent\Model;
 class Encounter extends Model
 {
     protected $fillable = [
-        'patient_id', 'appointment_id', 'clinician_id', 'department_id',
+        'encounter_number', 'client_uuid', 'patient_id', 'appointment_id', 'clinician_id', 'department_id',
         'encounter_type', 'triage_category', 'presenting_complaint', 'history',
-        'examination_findings', 'diagnosis', 'diagnosis_code', 'clinical_plan', 'status',
+        'examination_findings', 'diagnosis', 'diagnosis_code', 'clinical_plan', 'disposition_notes',
+        'status', 'stage', 'current_department',
     ];
 
     public function patient()
@@ -55,5 +56,20 @@ class Encounter extends Model
     public function admission()
     {
         return $this->hasOne(Admission::class);
+    }
+
+    public function clinicalNotes()
+    {
+        return $this->hasMany(ClinicalNote::class);
+    }
+
+    public function clinicalOrders()
+    {
+        return $this->hasMany(ClinicalOrder::class);
+    }
+
+    public function referrals()
+    {
+        return $this->hasMany(Referral::class);
     }
 }

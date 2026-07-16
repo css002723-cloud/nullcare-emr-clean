@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Resources\UserResource;
 use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
@@ -12,38 +13,35 @@ class AuthController extends Controller
 {
     /**
      * POST /api/login (and /api/auth/login alias)
-     * Issues a Sanctum token for a valid, active user.
-     *
-     * Accepts either `email` or `username` as the identifier field, since
-     * the frontend's login form posts `username` even though the value
-     * typed in is an email address — this avoids touching frontend code
-     * you don't own just to match a naming convention.
+     * Body: { username, password } — or { email, password } for
+     * Postman/curl testing convenience. Looks up by the real `username`
+     * column first (added in the Phase 1 schema migration), falling back
+     * to email only if no username match is found.
      */
     public function login(Request $request)
     {
-        $identifier = $request->input('email') ?? $request->input('username');
+        $request->validate(['password' => ['required', 'string']]);
 
-        $request->validate([
-            'password' => ['required', 'string'],
-        ]);
+        $identifier = $request->input('username') ?? $request->input('email');
 
         if (! $identifier) {
             throw ValidationException::withMessages([
-                'email' => ['Email (or username) is required.'],
+                'username' => ['Username (or email) is required.'],
             ]);
         }
 
-        $user = User::where('email', $identifier)->first();
+        $user = User::where('username', $identifier)->first()
+            ?? User::where('email', $identifier)->first();
 
         if (! $user || ! Hash::check($request->input('password'), $user->password)) {
             throw ValidationException::withMessages([
-                'email' => ['These credentials do not match our records.'],
+                'username' => ['These credentials do not match our records.'],
             ]);
         }
 
-        if ($user->status !== 'active') {
+        if (! $user->is_active || $user->status !== 'active') {
             throw ValidationException::withMessages([
-                'email' => ['This account is not active. Contact your system administrator.'],
+                'username' => ['This account is not active. Contact your system administrator.'],
             ]);
         }
 
@@ -56,13 +54,12 @@ class AuthController extends Controller
         return response()->json([
             'access_token' => $token,
             'token' => $token,
-            'user' => $this->formatUser($user),
+            'user' => new UserResource($user->load('role', 'department')),
         ]);
     }
 
     /**
      * POST /api/logout
-     * Revokes the token used for this request only (not all sessions).
      */
     public function logout(Request $request)
     {
@@ -73,24 +70,9 @@ class AuthController extends Controller
 
     /**
      * GET /api/me
-     * Returns the authenticated user + role, for building the role-based dashboard on load.
      */
     public function me(Request $request)
     {
-        return response()->json($this->formatUser($request->user()));
-    }
-
-    private function formatUser(User $user): array
-    {
-        $user->loadMissing('role', 'department');
-
-        return [
-            'id' => $user->id,
-            'full_name' => $user->full_name,
-            'email' => $user->email,
-            'role' => $user->role->name,
-            'department' => $user->department?->name,
-            'status' => $user->status,
-        ];
+        return new UserResource($request->user()->load('role', 'department'));
     }
 }

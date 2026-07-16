@@ -8,7 +8,7 @@ class InvoiceItem extends Model
 {
     public $timestamps = false;
 
-    protected $fillable = ['invoice_id', 'service_name', 'amount'];
+    protected $fillable = ['invoice_id', 'service_category', 'service_name', 'amount'];
 
     public function invoice()
     {

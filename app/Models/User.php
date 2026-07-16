@@ -2,7 +2,6 @@
 
 namespace App\Models;
 
-use Illuminate\Contracts\Auth\MustVerifyEmail;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Laravel\Sanctum\HasApiTokens;
@@ -12,8 +11,8 @@ class User extends Authenticatable
     use HasApiTokens, Notifiable;
 
     protected $fillable = [
-        'full_name', 'email', 'password', 'role_id', 'department_id',
-        'phone', 'status', 'last_login_at',
+        'full_name', 'username', 'email', 'password', 'role_id', 'department_id',
+        'phone', 'status', 'is_active', 'last_login_at',
     ];
 
     protected $hidden = ['password', 'remember_token'];
@@ -23,6 +22,7 @@ class User extends Authenticatable
         return [
             'last_login_at' => 'datetime',
             'password' => 'hashed',
+            'is_active' => 'boolean',
         ];
     }
 

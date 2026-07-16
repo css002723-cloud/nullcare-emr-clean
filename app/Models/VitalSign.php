@@ -12,7 +12,8 @@ class VitalSign extends Model
     protected $fillable = [
         'encounter_id', 'recorded_by', 'temperature', 'blood_pressure_systolic',
         'blood_pressure_diastolic', 'pulse_rate', 'respiratory_rate', 'oxygen_saturation',
-        'weight_kg', 'height_cm', 'blood_glucose', 'pain_score', 'is_abnormal', 'recorded_at',
+        'weight_kg', 'height_cm', 'blood_glucose', 'pain_score', 'is_abnormal',
+        'early_warning_score', 'recorded_at',
     ];
 
     protected function casts(): array

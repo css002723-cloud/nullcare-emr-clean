@@ -3,112 +3,141 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Http\Requests\StoreEncounterRequest;
-use App\Http\Requests\UpdateEncounterRequest;
+use App\Http\Resources\EncounterResource;
 use App\Models\Encounter;
 use App\Models\Patient;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Validator;
 
 class EncounterController extends Controller
 {
     /**
-     * GET /api/patients/{patient}/encounters
-     * Visit history for a patient (most recent first).
+     * GET /api/encounters?department=triage|consultation
+     * Powers Triage.jsx and Consultation.jsx work queues, filtered by the
+     * encounter's current pipeline stage (not a physical hospital department).
      */
-    public function index(Patient $patient)
+    public function index(Request $request)
     {
-        $encounters = $patient->encounters()
-            ->with(['clinician:id,full_name', 'department:id,name'])
-            ->latest()
-            ->paginate(20);
+        $stage = $request->query('department');
 
-        return response()->json($encounters);
+        $encounters = Encounter::query()
+            ->with('patient')
+            ->when($stage, fn ($query) => $query->where('stage', $stage))
+            ->whereNotIn('status', ['closed', 'discharged', 'referred_out', 'died'])
+            ->latest()
+            ->get();
+
+        return EncounterResource::collection($encounters);
     }
 
     /**
      * POST /api/encounters
-     * Opens a new encounter — the clinical episode a clinician works within
-     * for the rest of the visit (vitals, labs, prescriptions all attach here).
+     * Body: { patient_id, patient_client_uuid?, visit_type, chief_complaint,
+     *         priority, client_uuid }
+     * Reception opens the visit immediately after registering the patient —
+     * no clinician or department is known yet, hence both are nullable and
+     * left blank until triage/consultation picks the encounter up.
      */
-    public function store(StoreEncounterRequest $request)
+    public function store(Request $request)
     {
-        $data = $request->validated();
-        $data['clinician_id'] = $request->user()->id;
-        $data['status'] = 'open';
+        $validator = Validator::make($request->all(), [
+            'patient_id' => ['required_without:patient_client_uuid', 'nullable', 'integer', 'exists:patients,id'],
+            'patient_client_uuid' => ['required_without:patient_id', 'nullable', 'string', 'max:36'],
+            'visit_type' => ['required', 'in:outpatient,inpatient,emergency'],
+            'chief_complaint' => ['nullable', 'string'],
+            'priority' => ['nullable', 'in:routine,urgent,emergency'],
+            'client_uuid' => ['nullable', 'string', 'max:36'],
+        ]);
 
-        $encounter = Encounter::create($data);
-
-        // If this encounter came from a checked-in appointment, move the
-        // appointment along so it drops off the waiting-room queue view.
-        if ($encounter->appointment_id) {
-            $encounter->appointment()->update(['status' => 'completed']);
+        if ($validator->fails()) {
+            return response()->json(['message' => 'Validation failed.', 'errors' => $validator->errors()], 422);
         }
 
-        return response()->json($this->withSafetyContext($encounter), 201);
+        $data = $validator->validated();
+
+        if (! empty($data['client_uuid'])) {
+            $existing = Encounter::where('client_uuid', $data['client_uuid'])->first();
+            if ($existing) {
+                return new EncounterResource($existing->load('patient'));
+            }
+        }
+
+        $patientId = $data['patient_id'] ?? null;
+        if (! $patientId && ! empty($data['patient_client_uuid'])) {
+            $patientId = Patient::where('client_uuid', $data['patient_client_uuid'])->value('id');
+        }
+
+        if (! $patientId) {
+            return response()->json(['message' => 'Could not resolve the patient for this encounter.'], 422);
+        }
+
+        $encounter = DB::transaction(function () use ($data, $patientId, $request) {
+            return Encounter::create([
+                'encounter_number' => $this->generateEncounterNumber(),
+                'client_uuid' => $data['client_uuid'] ?? null,
+                'patient_id' => $patientId,
+                'clinician_id' => $request->user()->id,
+                'encounter_type' => $data['visit_type'],
+                'presenting_complaint' => $data['chief_complaint'] ?? null,
+                'triage_category' => $data['priority'] ?? 'routine',
+                'status' => 'open',
+                'stage' => 'triage',
+                'current_department' => 'triage',
+            ]);
+        });
+
+        return response()->json(new EncounterResource($encounter->load('patient')), 201);
     }
 
     /**
      * GET /api/encounters/{encounter}
-     * Full clinical picture for this visit, plus the patient's allergy
-     * list surfaced up front — patient safety first, per the design brief.
      */
     public function show(Encounter $encounter)
     {
         $encounter->load([
-            'patient:id,patient_number,first_name,last_name,gender,date_of_birth',
-            'clinician:id,full_name',
-            'department:id,name',
+            'patient.allergies',
             'vitalSigns',
             'labOrders.result',
             'prescriptions',
+            'clinicalNotes',
+            'clinicalOrders',
+            'referrals',
         ]);
 
-        return response()->json($this->withSafetyContext($encounter));
-    }
-
-    /**
-     * PATCH /api/encounters/{encounter}
-     * Clinician fills in history / examination / diagnosis / plan as the
-     * consult progresses — supports partial updates for autosave.
-     */
-    public function update(UpdateEncounterRequest $request, Encounter $encounter)
-    {
-        $encounter->update($request->validated());
-
-        return response()->json($this->withSafetyContext($encounter->fresh()));
+        return new EncounterResource($encounter);
     }
 
     /**
      * POST /api/encounters/{encounter}/close
-     * Ends the clinical episode once the treatment plan, billing, and
-     * discharge/admission decision are all settled.
+     * Body: { outcome, disposition_notes }
+     * outcome: discharged | admitted | referred_out | died
      */
     public function close(Request $request, Encounter $encounter)
     {
         $validated = $request->validate([
-            'status' => ['required', 'in:closed,referred,admitted,discharged'],
+            'outcome' => ['required', 'in:discharged,admitted,referred_out,died'],
+            'disposition_notes' => ['nullable', 'string'],
         ]);
 
-        $encounter->update(['status' => $validated['status']]);
+        $encounter->update([
+            'status' => $validated['outcome'],
+            'disposition_notes' => $validated['disposition_notes'] ?? null,
+            'stage' => 'completed',
+        ]);
 
-        return response()->json($this->withSafetyContext($encounter->fresh()));
+        return new EncounterResource($encounter->fresh(['patient']));
     }
 
-    /**
-     * Attaches the patient's active allergies to the response so the
-     * frontend can render an alert banner without a second API call.
-     */
-    private function withSafetyContext(Encounter $encounter): array
+    private function generateEncounterNumber(): string
     {
-        $allergies = $encounter->patient
-            ? $encounter->patient->allergies()->get(['allergen', 'reaction', 'severity'])
-            : collect();
+        $year = now()->format('Y');
 
-        return [
-            ...$encounter->toArray(),
-            'safety_alerts' => [
-                'allergies' => $allergies,
-            ],
-        ];
+        do {
+            $sequence = str_pad((string) random_int(1, 999999), 6, '0', STR_PAD_LEFT);
+            $candidate = "ENC-{$year}-{$sequence}";
+        } while (Encounter::where('encounter_number', $candidate)->exists());
+
+        return $candidate;
     }
 }

@@ -7,52 +7,77 @@ use App\Models\VitalSign;
 class VitalSignAnalyzer
 {
     /**
-     * Simple, transparent adult-vitals thresholds for the Phase 1 prototype.
-     * Deliberately conservative (flags early) since this drives a visible
-     * alert for the nurse/clinician, not an automated clinical decision.
-     * Swap for age/context-aware rules in a later phase.
+     * Simplified NEWS2-style Early Warning Score: each vital sign contributes
+     * 0-3 points based on how far it deviates from normal range; the total
+     * gives a single number a nurse/doctor can act on at a glance.
+     * This is a Phase 1 prototype scoring — not a substitute for a full
+     * validated clinical scoring tool in a later phase.
+     */
+    public function earlyWarningScore(VitalSign $vital): int
+    {
+        return $this->temperatureScore($vital->temperature)
+            + $this->respiratoryScore($vital->respiratory_rate)
+            + $this->spo2Score($vital->oxygen_saturation)
+            + $this->systolicScore($vital->blood_pressure_systolic)
+            + $this->pulseScore($vital->pulse_rate);
+    }
+
+    /**
+     * A score of 5+ is the standard NEWS2 threshold for "requires urgent
+     * clinical review" — used here as the abnormal flag trigger.
      */
     public function isAbnormal(VitalSign $vital): bool
     {
-        return $this->tempAbnormal($vital->temperature)
-            || $this->bpAbnormal($vital->blood_pressure_systolic, $vital->blood_pressure_diastolic)
-            || $this->pulseAbnormal($vital->pulse_rate)
-            || $this->respAbnormal($vital->respiratory_rate)
-            || $this->spo2Abnormal($vital->oxygen_saturation)
-            || $this->glucoseAbnormal($vital->blood_glucose);
+        return $this->earlyWarningScore($vital) >= 5;
     }
 
-    private function tempAbnormal(?float $celsius): bool
+    private function temperatureScore(?float $c): int
     {
-        return $celsius !== null && ($celsius < 35.0 || $celsius > 38.5);
+        if ($c === null) return 0;
+        if ($c < 35.0) return 3;
+        if ($c <= 36.0) return 1;
+        if ($c <= 38.0) return 0;
+        if ($c <= 39.0) return 1;
+        return 2;
     }
 
-    private function bpAbnormal(?int $systolic, ?int $diastolic): bool
+    private function respiratoryScore(?int $rr): int
     {
-        if ($systolic !== null && ($systolic < 90 || $systolic > 140)) {
-            return true;
-        }
-
-        return $diastolic !== null && ($diastolic < 60 || $diastolic > 90);
+        if ($rr === null) return 0;
+        if ($rr < 8) return 3;
+        if ($rr <= 11) return 1;
+        if ($rr <= 20) return 0;
+        if ($rr <= 24) return 2;
+        return 3;
     }
 
-    private function pulseAbnormal(?int $bpm): bool
+    private function spo2Score(?int $spo2): int
     {
-        return $bpm !== null && ($bpm < 50 || $bpm > 120);
+        if ($spo2 === null) return 0;
+        if ($spo2 <= 91) return 3;
+        if ($spo2 <= 93) return 2;
+        if ($spo2 <= 95) return 1;
+        return 0;
     }
 
-    private function respAbnormal(?int $breathsPerMin): bool
+    private function systolicScore(?int $sbp): int
     {
-        return $breathsPerMin !== null && ($breathsPerMin < 10 || $breathsPerMin > 24);
+        if ($sbp === null) return 0;
+        if ($sbp <= 90) return 3;
+        if ($sbp <= 100) return 2;
+        if ($sbp <= 110) return 1;
+        if ($sbp <= 219) return 0;
+        return 3;
     }
 
-    private function spo2Abnormal(?int $percent): bool
+    private function pulseScore(?int $hr): int
     {
-        return $percent !== null && $percent < 92;
-    }
-
-    private function glucoseAbnormal(?float $mmol): bool
-    {
-        return $mmol !== null && ($mmol < 3.5 || $mmol > 11.0);
+        if ($hr === null) return 0;
+        if ($hr <= 40) return 3;
+        if ($hr <= 50) return 1;
+        if ($hr <= 90) return 0;
+        if ($hr <= 110) return 1;
+        if ($hr <= 130) return 2;
+        return 3;
     }
 }

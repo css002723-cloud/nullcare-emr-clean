@@ -6,13 +6,15 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
 class Patient extends Model
-{   use HasFactory;
+{
+    use HasFactory;
     protected $fillable = [
-        'patient_number', 'national_id', 'first_name', 'last_name', 'gender',
+        'client_uuid', 'patient_number', 'national_id', 'first_name', 'last_name', 'gender',
         'date_of_birth', 'age_estimate', 'phone', 'email', 'address', 'village',
-        'traditional_authority', 'district', 'occupation', 'patient_category',
+        'traditional_authority', 'district', 'region', 'occupation', 'patient_category',
         'guardian_name', 'guardian_phone', 'guardian_relationship',
         'consent_care', 'consent_teaching', 'consent_research',
+        'is_deceased', 'referred_doctor', 'referred_doctor_department', 'completion_status',
         'is_duplicate_of', 'registered_by',
     ];
 
@@ -23,7 +25,13 @@ class Patient extends Model
             'consent_care' => 'boolean',
             'consent_teaching' => 'boolean',
             'consent_research' => 'boolean',
+            'is_deceased' => 'boolean',
         ];
+    }
+
+    public function getFullNameAttribute(): string
+    {
+        return trim("{$this->first_name} {$this->last_name}");
     }
 
     public function registeredBy()

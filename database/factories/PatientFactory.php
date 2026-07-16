@@ -3,43 +3,77 @@
 namespace Database\Factories;
 
 use App\Models\Patient;
+use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
-/**
- * @extends Factory<Patient>
- */
 class PatientFactory extends Factory
 {
+    protected $model = Patient::class;
+
     /**
-     * Define the model's default state.
-     *
-     * @return array<string, mixed>
+     * Sample Malawian locations for realistic-looking test data, matching
+     * the district/region/village/TA fields your schema actually tracks.
      */
+    private array $districts = ['Blantyre', 'Zomba', 'Mzuzu', 'Lilongwe', 'Mangochi', 'Kasungu', 'Mulanje', 'Karonga'];
+    private array $regions = ['Southern', 'Central', 'Northern'];
+    private array $traditionalAuthorities = ['Kapeni', 'Chigaru', 'Kuntaja', 'Somba', 'Chimwala', 'Kadewere'];
+
     public function definition(): array
     {
+        $gender = $this->faker->randomElement(['male', 'female']);
+        $firstName = $gender === 'male' ? $this->faker->firstNameMale() : $this->faker->firstNameFemale();
+
         return [
-            'patient_number' => $this->faker->unique()->numerify('P####'),
-            'national_id' => $this->faker->unique()->numerify('NID########'),
-            'first_name' => $this->faker->firstName(),
+            'patient_number' => 'NC-'.now()->format('Y').'-'.str_pad((string) $this->faker->unique()->numberBetween(1, 999999), 6, '0', STR_PAD_LEFT),
+            'national_id' => $this->faker->boolean(70) ? strtoupper($this->faker->bothify('??######')) : null,
+            'first_name' => $firstName,
             'last_name' => $this->faker->lastName(),
-            'gender' => $this->faker->randomElement(['Male', 'Female']),
-            'date_of_birth' => $this->faker->date(),
-            'age_estimate' => $this->faker->numberBetween(0, 120),
-            'phone' => $this->faker->phoneNumber(),
-            'email' => $this->faker->unique()->safeEmail(),
-            'address' => $this->faker->address(),
-            'village' => $this->faker->word(),
-            'traditional_authority' => $this->faker->word(),
-            'district' => $this->faker->word(),
-            'occupation' => $this->faker->word(),
-            'patient_category' => $this->faker->randomElement(['outpatient', 'inpatient', 'emergency']),
-            'guardian_name' => $this->faker->name(),
-            'guardian_phone' => $this->faker->phoneNumber(),
-            'guardian_relationship' => $this->faker->word(),
-            'consent_care' => $this->faker->boolean(),
-            'consent_teaching' => $this->faker->boolean(),
-            'consent_research' => $this->faker->boolean(),
-            'registered_by' => 1, // This can be set to a User ID when creating a patient
+            'gender' => $gender,
+            'date_of_birth' => $this->faker->boolean(85)
+                ? $this->faker->dateTimeBetween('-90 years', '-1 years')->format('Y-m-d')
+                : null,
+            'age_estimate' => $this->faker->boolean(15) ? $this->faker->numberBetween(1, 90) : null,
+            'phone' => $this->faker->boolean(80) ? '09'.$this->faker->numberBetween(10000000, 99999999) : null,
+            'email' => $this->faker->boolean(20) ? $this->faker->safeEmail() : null,
+            'village' => $this->faker->boolean(70) ? $this->faker->citySuffix().' Village' : null,
+            'traditional_authority' => $this->faker->randomElement($this->traditionalAuthorities),
+            'district' => $this->faker->randomElement($this->districts),
+            'region' => $this->faker->randomElement($this->regions),
+            'occupation' => $this->faker->boolean(60) ? $this->faker->jobTitle() : null,
+            'patient_category' => $this->faker->randomElement([
+                'outpatient', 'outpatient', 'outpatient', // weighted — most visits are outpatient
+                'inpatient', 'emergency', 'student', 'staff', 'private', 'referred',
+            ]),
+            'guardian_name' => $this->faker->boolean(20) ? $this->faker->name() : null,
+            'guardian_phone' => $this->faker->boolean(20) ? '09'.$this->faker->numberBetween(10000000, 99999999) : null,
+            'guardian_relationship' => $this->faker->boolean(20) ? $this->faker->randomElement(['mother', 'father', 'spouse', 'sibling', 'guardian']) : null,
+            'consent_care' => true,
+            'consent_teaching' => $this->faker->boolean(30),
+            'consent_research' => $this->faker->boolean(15),
+            'is_deceased' => false,
+            'completion_status' => $this->faker->randomElement(['not_completed', 'not_completed', 'completed']),
+            'registered_by' => User::inRandomOrder()->value('id') ?? 1,
         ];
+    }
+
+    /**
+     * Usage: Patient::factory()->child()->create()
+     */
+    public function child(): static
+    {
+        return $this->state(fn () => [
+            'date_of_birth' => $this->faker->dateTimeBetween('-11 years', '-1 years')->format('Y-m-d'),
+            'guardian_name' => $this->faker->name(),
+            'guardian_phone' => '09'.$this->faker->numberBetween(10000000, 99999999),
+            'guardian_relationship' => $this->faker->randomElement(['mother', 'father', 'guardian']),
+        ]);
+    }
+
+    /**
+     * Usage: Patient::factory()->deceased()->create()
+     */
+    public function deceased(): static
+    {
+        return $this->state(fn () => ['is_deceased' => true]);
     }
 }

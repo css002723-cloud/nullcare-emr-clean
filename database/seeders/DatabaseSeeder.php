@@ -9,15 +9,13 @@ class DatabaseSeeder extends Seeder
 {
     use WithoutModelEvents;
 
-    /**
-     * Seed the application's database.
-     */
     public function run(): void
     {
-        // Order matters: roles must exist before users can reference them.
+        // Order matters: roles before users; catalog is independent.
         $this->call([
             RoleSeeder::class,
             TestUserSeeder::class,
+            LabTestCatalogSeeder::class,
         ]);
     }
 }

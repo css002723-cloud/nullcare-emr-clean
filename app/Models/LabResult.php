@@ -10,13 +10,13 @@ class LabResult extends Model
     const UPDATED_AT = null;
 
     protected $fillable = [
-        'lab_order_id', 'result_value', 'unit', 'reference_range',
-        'is_critical', 'entered_by', 'verified_by', 'result_date',
+        'lab_order_id', 'result_value', 'unit', 'reference_range', 'interpretation',
+        'is_critical', 'is_abnormal', 'entered_by', 'verified_by', 'result_date',
     ];
 
     protected function casts(): array
     {
-        return ['is_critical' => 'boolean', 'result_date' => 'datetime'];
+        return ['is_critical' => 'boolean', 'is_abnormal' => 'boolean', 'result_date' => 'datetime'];
     }
 
     public function labOrder()

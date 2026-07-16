@@ -11,7 +11,18 @@ class Prescription extends Model
     protected $fillable = [
         'encounter_id', 'patient_id', 'prescribed_by', 'drug_name', 'formulation',
         'dose', 'route', 'frequency', 'duration', 'status',
+        'is_pediatric_dose', 'cds_alerts',
     ];
+
+    protected function casts(): array
+    {
+        return ['is_pediatric_dose' => 'boolean'];
+    }
+
+    // cds_alerts is intentionally NOT cast to array — the frontend stores/reads
+    // it as a raw JSON string and does its own JSON.parse() on the list view,
+    // while the create-response separately exposes a real array as
+    // `cds_alerts_list` (built in the controller, not stored on the model).
 
     public function encounter()
     {

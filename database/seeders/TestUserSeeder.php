@@ -9,11 +9,11 @@ use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
 
 /**
- * Creates one login per role so you can test every endpoint immediately.
- * Run AFTER RoleSeeder. Updated to match the frontend's real 10-role list
- * (reception/radiologist/dialysis_tech/records_officer replace the old
- * receptionist/medical_director/ict_support set).
- * All passwords are "password" — obviously only for local/demo use.
+ * Creates one login per role, matching EXACTLY what Login.jsx's own
+ * hardcoded hint text displays on screen: "Demo accounts (password
+ * nullcare123): admin, reception1, nurse1, doctor1, labtech1,
+ * radiologist1, pharmacist1, billing1, dialysis1, records1" — so anyone
+ * on the team can just read the screen and type it correctly.
  */
 class TestUserSeeder extends Seeder
 {
@@ -25,7 +25,7 @@ class TestUserSeeder extends Seeder
         );
 
         $accounts = [
-            ['role' => 'admin', 'username' => 'admin1', 'email' => 'admin@nullcare.test', 'name' => 'System Admin'],
+            ['role' => 'admin', 'username' => 'admin', 'email' => 'admin@nullcare.test', 'name' => 'System Admin'],
             ['role' => 'reception', 'username' => 'reception1', 'email' => 'reception@nullcare.test', 'name' => 'Reception Desk'],
             ['role' => 'nurse', 'username' => 'nurse1', 'email' => 'nurse@nullcare.test', 'name' => 'Nurse Grace Mvula'],
             ['role' => 'doctor', 'username' => 'doctor1', 'email' => 'doctor@nullcare.test', 'name' => 'Dr. Jane Phiri'],
@@ -40,12 +40,12 @@ class TestUserSeeder extends Seeder
         foreach ($accounts as $account) {
             $role = Role::where('name', $account['role'])->firstOrFail();
 
-            User::firstOrCreate(
+            User::updateOrCreate(
                 ['email' => $account['email']],
                 [
                     'full_name' => $account['name'],
                     'username' => $account['username'],
-                    'password' => Hash::make('password'),
+                    'password' => Hash::make('nullcare123'),
                     'role_id' => $role->id,
                     'department_id' => $department->id,
                     'status' => 'active',

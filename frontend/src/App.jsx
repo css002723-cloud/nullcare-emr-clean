@@ -35,7 +35,7 @@ export default function App() {
             <Route path="/patients" element={<ProtectedRoute><Patients /></ProtectedRoute>} />
             <Route path="/patients/:id" element={<ProtectedRoute><PatientDetail /></ProtectedRoute>} />
 
-            <Route path="/reception" element={<ProtectedRoute roles={["receptionist", "nurse"]}><Reception /></ProtectedRoute>} />
+            <Route path="/reception" element={<ProtectedRoute roles={["reception", "nurse"]}><Reception /></ProtectedRoute>} />
             <Route path="/triage" element={<ProtectedRoute roles={["nurse", "doctor"]}><Triage /></ProtectedRoute>} />
             <Route path="/consultation" element={<ProtectedRoute roles={["doctor"]}><Consultation /></ProtectedRoute>} />
             <Route path="/encounters/:id" element={<ProtectedRoute><EncounterWorkspace /></ProtectedRoute>} />

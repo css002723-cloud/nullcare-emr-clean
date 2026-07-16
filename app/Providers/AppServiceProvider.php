@@ -3,31 +3,30 @@
 namespace App\Providers;
 
 use App\Models\{
-    Admission, DispensingRecord, Encounter, Invoice, LabOrder, LabResult,
-    Patient, PatientAllergy, Payment, PharmacyStock, Prescription, User, VitalSign
+    Admission, ClinicalNote, ClinicalOrder, DispensingRecord, Encounter, Invoice,
+    LabOrder, LabResult, Patient, PatientAllergy, Payment, PharmacyStock,
+    Prescription, Referral, User, VitalSign
 };
 use App\Observers\AuditLogObserver;
+use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
 {
-    /**
-     * Register any application services.
-     */
     public function register(): void
     {
         //
     }
 
-    /**
-     * Bootstrap any application services.
-     */
     public function boot(): void
     {
-        // Every model where a create/update/delete should leave an audit
-        // trail per the brief's governance requirement (Section 9.2-9.4).
-        // sync_queue and system_alerts are intentionally excluded — they're
-        // system-generated, not user actions.
+        // Disables Laravel's default { "data": [...] } wrapping on every
+        // API Resource / Resource::collection() response. The frontend was
+        // built expecting bare arrays/objects (res.data.map(...) directly),
+        // not the wrapped envelope — without this line, EVERY Phase 3
+        // endpoint using ::collection() breaks the same way AdminAudit just did.
+        JsonResource::withoutWrapping();
+
         $auditedModels = [
             Patient::class,
             PatientAllergy::class,
@@ -42,6 +41,9 @@ class AppServiceProvider extends ServiceProvider
             Payment::class,
             Admission::class,
             User::class,
+            ClinicalNote::class,
+            ClinicalOrder::class,
+            Referral::class,
         ];
 
         foreach ($auditedModels as $model) {
