@@ -1,36 +1,37 @@
 import { useEffect, useState } from "react";
-import { FileSearch, Download } from "lucide-react";
+import { FileSearch, Download, CheckCircle2 } from "lucide-react";
 import api from "../services/api";
 import { Card, Button, LoadingRow } from "../components/ui";
 import PageHeader from "../components/PageHeader";
 
 export default function Research() {
   const [summary, setSummary] = useState(null);
-  const [dataset, setDataset] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [downloaded, setDownloaded] = useState(false);
+  const [error, setError] = useState("");
 
   useEffect(() => {
     api.get("/research/consent-summary").then((res) => setSummary(res.data)).catch(() => {});
   }, []);
 
-  async function exportData() {
+  async function exportAndDownload() {
     setLoading(true);
+    setError("");
+    setDownloaded(false);
     try {
-      const res = await api.get("/research/export");
-      setDataset(res.data);
+      const res = await api.get("/research/export", { responseType: "blob" });
+      const url = URL.createObjectURL(new Blob([res.data], { type: "text/csv" }));
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `nullcare-research-export-${new Date().toISOString().slice(0, 10)}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+      setDownloaded(true);
+    } catch {
+      setError("Couldn't generate the export — please try again.");
     } finally {
       setLoading(false);
     }
-  }
-
-  function download() {
-    const blob = new Blob([JSON.stringify(dataset, null, 2)], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `nullcare_research_export_${Date.now()}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
   }
 
   return (
@@ -38,7 +39,7 @@ export default function Research() {
       <PageHeader
         icon={FileSearch}
         title="De-identified research export"
-        subtitle="Exports include only patients who gave explicit consent for research use. Direct identifiers (name, MRN, national ID, phone, guardian details, village/TA) are removed; age is bucketed and location generalized to district/region to reduce re-identification risk."
+        subtitle="Exports include only patients who gave explicit consent for research use. Direct identifiers (name, permanent patient ID, national ID, phone, guardian details, village/TA) are removed; age is bucketed and location generalized to district/region to reduce re-identification risk."
       />
 
       {summary && (
@@ -52,14 +53,19 @@ export default function Research() {
       )}
 
       <Card>
-        <Button onClick={exportData} disabled={loading}>{loading ? "Preparing export…" : "Generate de-identified dataset"}</Button>
-        {dataset && (
-          <div className="mt-4">
-            <p className="text-sm">{dataset.record_count} records ready.</p>
-            <p className="text-xs text-ink/50 mt-1">{dataset.note}</p>
-            <Button variant="secondary" size="sm" className="mt-2" onClick={download} icon={Download}>Download JSON</Button>
-          </div>
+        <p className="text-sm text-ink/60 mb-3">
+          Generates a CSV file — one row per patient visit, patient-level fields repeated — ready for Excel, Stata,
+          R, or DHIS2 import.
+        </p>
+        <Button onClick={exportAndDownload} disabled={loading} icon={Download}>
+          {loading ? "Preparing CSV…" : "Download de-identified CSV"}
+        </Button>
+        {downloaded && (
+          <p className="text-sm text-moss bg-moss/10 border border-moss/20 rounded-lg px-3 py-2 mt-3 flex items-center gap-1.5">
+            <CheckCircle2 size={14} /> CSV downloaded.
+          </p>
         )}
+        {error && <p className="text-sm text-alert mt-3">{error}</p>}
       </Card>
     </div>
   );

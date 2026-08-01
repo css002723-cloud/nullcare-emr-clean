@@ -1,39 +1,47 @@
 import { useState, useEffect, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { Users, Search, UserPlus, CheckCircle2, CircleDashed } from "lucide-react";
+import { Users, Search, UserPlus } from "lucide-react";
 import api from "../services/api";
 import { Card, Input, Button, Badge, EmptyState, LoadingRow, calcAge } from "../components/ui";
 import PageHeader from "../components/PageHeader";
 import { getWithCache } from "../offline/offlineResource";
 
+const TABS = [
+  { value: "active", label: "Not completed" },
+  { value: "completed", label: "Completed" },
+];
+
+function formatVisitTime(iso) {
+  if (!iso) return null;
+  const d = new Date(iso);
+  return d.toLocaleDateString(undefined, { day: "2-digit", month: "short", year: "numeric" }) +
+    " · " + d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit" });
+}
+
 export default function Patients() {
   const navigate = useNavigate();
   const [query, setQuery] = useState("");
+  const [status, setStatus] = useState("active");
   const [patients, setPatients] = useState([]);
   const [loading, setLoading] = useState(true);
   const [fromCache, setFromCache] = useState(false);
-  const [statusFilter, setStatusFilter] = useState("not_completed");
 
-  const search = useCallback(async (q, selectedStatus = statusFilter) => {
+  const search = useCallback(async (q, s) => {
     setLoading(true);
-    const { data, fromCache } = await getWithCache(`patients:${selectedStatus}:${q}`, "/patients", { q, status: selectedStatus });
+    const { data, fromCache } = await getWithCache(`patients:${s}:${q}`, "/patients", { q, status: s });
     setPatients(data);
     setFromCache(fromCache);
     setLoading(false);
   }, []);
 
   useEffect(() => {
-    search("");
-  }, [search]);
+    search(query, status);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [status]);
 
   function handleSearch(e) {
     e.preventDefault();
-    search(query, statusFilter);
-  }
-
-  function toggleStatus(nextStatus) {
-    setStatusFilter(nextStatus);
-    search(query, nextStatus);
+    search(query, status);
   }
 
   return (
@@ -41,11 +49,25 @@ export default function Patients() {
       <PageHeader
         icon={Users}
         title="Patients"
-        subtitle="Master patient index — search by name, MRN, phone, or national ID"
+        subtitle="Master patient index — search by name, patient ID, phone, or national ID"
         action={<Button onClick={() => navigate("/reception")} icon={UserPlus}>Register new patient</Button>}
       />
 
-      <form onSubmit={handleSearch} className="flex flex-col gap-2 md:flex-row">
+      <div className="flex gap-2">
+        {TABS.map((t) => (
+          <button
+            key={t.value}
+            onClick={() => setStatus(t.value)}
+            className={`px-3.5 py-1.5 rounded-full text-sm font-medium transition-colors ${
+              status === t.value ? "bg-teal-500 text-white" : "bg-surface border border-line text-ink/60"
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      <form onSubmit={handleSearch} className="flex gap-2">
         <div className="relative flex-1">
           <Search size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink/35 pointer-events-none" />
           <Input
@@ -56,11 +78,7 @@ export default function Patients() {
             className="pl-9"
           />
         </div>
-        <div className="flex gap-2">
-          <Button type="button" variant={statusFilter === "not_completed" ? "primary" : "secondary"} onClick={() => toggleStatus("not_completed")} icon={CircleDashed}>Not completed</Button>
-          <Button type="button" variant={statusFilter === "completed" ? "primary" : "secondary"} onClick={() => toggleStatus("completed")} icon={CheckCircle2}>Completed</Button>
-          <Button type="submit" variant="secondary">Search</Button>
-        </div>
+        <Button type="submit" variant="secondary">Search</Button>
       </form>
 
       {fromCache && (
@@ -72,19 +90,24 @@ export default function Patients() {
       {loading ? (
         <LoadingRow />
       ) : patients.length === 0 ? (
-        <EmptyState title="No patients found" hint="Try a different search term, or register a new patient." />
+        <EmptyState
+          title={status === "active" ? "No ongoing patients" : "No completed visits yet"}
+          hint={status === "active"
+            ? "Everyone currently registered has been discharged, admitted, referred out, or hasn't been registered yet."
+            : "Once a patient's visit is discharged, admitted, referred out, or documented as a death, it'll show up here."}
+        />
       ) : (
         <Card className="p-0 overflow-hidden">
           <div className="overflow-x-auto">
-          <table className="w-full min-w-[640px] text-sm">
+          <table className="w-full min-w-[720px] text-sm">
             <thead className="bg-surface-alt text-accent text-xs uppercase tracking-wide">
               <tr>
                 <th className="text-left px-4 py-3">Patient</th>
-                <th className="text-left px-4 py-3">MRN</th>
+                <th className="text-left px-4 py-3">Patient ID</th>
                 <th className="text-left px-4 py-3">Sex / Age</th>
                 <th className="text-left px-4 py-3">District</th>
                 <th className="text-left px-4 py-3">Category</th>
-                <th className="text-left px-4 py-3">Referred doctor</th>
+                <th className="text-left px-4 py-3">Last visit</th>
               </tr>
             </thead>
             <tbody>
@@ -92,16 +115,16 @@ export default function Patients() {
                 <tr
                   key={p.id}
                   className="border-t border-line hover:bg-surface-alt/60 cursor-pointer"
-                  onClick={() => navigate(`/patients/${p.id}`)}
+                  onClick={() => navigate(`/patients/${p.patient_uid}`)}
                   tabIndex={0}
                   role="button"
-                  onKeyDown={(e) => e.key === "Enter" && navigate(`/patients/${p.id}`)}
+                  onKeyDown={(e) => e.key === "Enter" && navigate(`/patients/${p.patient_uid}`)}
                 >
                   <td className="px-4 py-3 font-medium">
                     {p.full_name}
                     {p.is_deceased && <Badge tone="critical" className="ml-2">Deceased</Badge>}
                   </td>
-                  <td className="px-4 py-3 mrn-mono text-ink/70">{p.mrn}</td>
+                  <td className="px-4 py-3 mrn-mono text-ink/70">{p.patient_uid}</td>
                   <td className="px-4 py-3 text-ink/70">
                     {p.sex || "—"} / {calcAge(p.date_of_birth, p.estimated_age) ?? "—"}
                   </td>
@@ -109,8 +132,16 @@ export default function Patients() {
                   <td className="px-4 py-3">
                     <Badge>{p.patient_category}</Badge>
                   </td>
-                  <td className="px-4 py-3 text-ink/70">
-                    {p.referred_doctor ? `${p.referred_doctor}${p.referred_doctor_department ? ` · ${p.referred_doctor_department}` : ""}` : "—"}
+                  <td className="px-4 py-3 text-ink/70 whitespace-nowrap">
+                    {p.latest_encounter_at ? (
+                      <>
+                        <span>{formatVisitTime(p.latest_encounter_at)}</span>
+                        {p.latest_mrn && <span className="mrn-mono text-xs text-ink/45 ml-1.5">({p.latest_mrn})</span>}
+                        {p.has_active_encounter && <Badge tone="success" className="ml-2">ongoing</Badge>}
+                      </>
+                    ) : (
+                      <span className="text-ink/35">No visit yet</span>
+                    )}
                   </td>
                 </tr>
               ))}

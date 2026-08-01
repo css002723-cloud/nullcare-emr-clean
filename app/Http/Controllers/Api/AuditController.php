@@ -3,21 +3,25 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Http\Resources\AuditLogResource;
 use App\Models\AuditLog;
+use Illuminate\Http\Request;
 
 class AuditController extends Controller
 {
     /**
-     * GET /api/audit
-     * Most recent 200 entries — the AdminAudit.jsx screen is a flat table
-     * with no pagination UI yet, so a sane cap avoids ever shipping the
-     * entire history in one response as the system grows.
+     * GET /api/audit?entity_type=&username= (admin only)
      */
-    public function index()
+    public function index(Request $request)
     {
-        $logs = AuditLog::with('user')->latest()->limit(200)->get();
+        $query = AuditLog::query();
 
-        return AuditLogResource::collection($logs);
+        if ($request->filled('entity_type')) {
+            $query->where('entity_type', $request->query('entity_type'));
+        }
+        if ($request->filled('username')) {
+            $query->where('username', $request->query('username'));
+        }
+
+        return response()->json($query->latest('timestamp')->limit(500)->get());
     }
 }

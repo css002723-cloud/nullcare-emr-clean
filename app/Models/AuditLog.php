@@ -6,16 +6,13 @@ use Illuminate\Database\Eloquent\Model;
 
 class AuditLog extends Model
 {
-    const UPDATED_AT = null;
+    public $timestamps = false;
 
-    protected $fillable = [
-        'user_id', 'action', 'table_name', 'record_id',
-        'old_value', 'new_value', 'ip_address',
-    ];
+    protected $fillable = ['timestamp', 'user_id', 'username', 'action', 'entity_type', 'entity_id', 'details', 'ip_address'];
 
     protected function casts(): array
     {
-        return ['old_value' => 'array', 'new_value' => 'array'];
+        return ['timestamp' => 'datetime'];
     }
 
     public function user()

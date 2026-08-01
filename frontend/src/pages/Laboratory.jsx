@@ -3,6 +3,7 @@ import { FlaskConical } from "lucide-react";
 import api from "../services/api";
 import { Card, Badge, Button, Field, Input, Select, LoadingRow, EmptyState } from "../components/ui";
 import PageHeader from "../components/PageHeader";
+import PatientLookup from "../components/PatientLookup";
 import { useAuth } from "../context/AuthContext";
 
 const STATUS_TABS = ["ordered", "collected", "received", "resulted"];
@@ -72,23 +73,32 @@ export default function Laboratory() {
 }
 
 function QuickOrderPanel({ catalog, onOrdered }) {
-  const [encounterId, setEncounterId] = useState("");
+  const [encounterId, setEncounterId] = useState(null);
   const [testCode, setTestCode] = useState("");
   const [specimenType, setSpecimenType] = useState("");
   const [priority, setPriority] = useState("routine");
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [resetKey, setResetKey] = useState(0);
 
   async function submit(e) {
     e.preventDefault();
-    if (!encounterId || !testCode) return;
+    setError("");
+    if (!encounterId || !testCode) {
+      setError("Select a patient's visit and a test before placing the order.");
+      return;
+    }
     setSaving(true);
     try {
       await api.post("/lab/orders", {
-        encounter_id: Number(encounterId), test_code: testCode,
+        encounter_id: encounterId, test_code: testCode,
         specimen_type: specimenType, priority,
       });
-      setEncounterId(""); setTestCode(""); setSpecimenType("");
+      setEncounterId(null); setTestCode(""); setSpecimenType("");
+      setResetKey((k) => k + 1);
       onOrdered();
+    } catch (err) {
+      setError(err.response?.data?.message || "Couldn't place the order — please try again.");
     } finally {
       setSaving(false);
     }
@@ -98,9 +108,14 @@ function QuickOrderPanel({ catalog, onOrdered }) {
     <Card className="bg-surface-alt border-line">
       <p className="font-display text-lg mb-3">Order a test (LOINC-coded)</p>
       <form onSubmit={submit} className="grid md:grid-cols-4 gap-3 items-end">
-        <Field label="Encounter ID" hint="Find on the patient's encounter page">
-          <Input value={encounterId} onChange={(e) => setEncounterId(e.target.value)} placeholder="e.g. 12" />
-        </Field>
+        <div className="md:col-span-2">
+          <PatientLookup
+            key={resetKey}
+            requireEncounter
+            label="Patient"
+            onSelect={({ encounterId }) => setEncounterId(encounterId)}
+          />
+        </div>
         <Field label="Test">
           <Select value={testCode} onChange={(e) => setTestCode(e.target.value)}>
             <option value="">Select…</option>
@@ -119,6 +134,7 @@ function QuickOrderPanel({ catalog, onOrdered }) {
             <option value="stat">Stat</option>
           </Select>
         </Field>
+        {error && <p className="text-sm text-alert md:col-span-4">{error}</p>}
         <Button type="submit" disabled={saving} className="md:col-span-4">{saving ? "Ordering…" : "Place lab order"}</Button>
       </form>
     </Card>

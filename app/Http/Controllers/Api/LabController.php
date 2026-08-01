@@ -3,155 +3,185 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
-use App\Http\Resources\LabOrderResource;
-use App\Http\Resources\LabResultResource;
 use App\Models\Encounter;
 use App\Models\LabOrder;
 use App\Models\LabResult;
-use App\Models\LabTestCatalog;
-use App\Models\SystemAlert;
+use App\Models\Order;
+use App\Services\AuditLogger;
+use App\Services\IdGenerator;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Str;
 
 class LabController extends Controller
 {
     /**
      * GET /api/lab/catalog
-     * Returns an object keyed by test_code, e.g. { "FBC": { "loinc_code": "...", "loinc_display": "..." } },
-     * matching the shape QuickOrderPanel in Laboratory.jsx expects (not an array).
      */
     public function catalog()
     {
-        $catalog = LabTestCatalog::all()->keyBy('test_code')->map(fn ($t) => [
-            'loinc_code' => $t->loinc_code,
-            'loinc_display' => $t->loinc_display,
-            'default_specimen_type' => $t->default_specimen_type,
-        ]);
-
-        return response()->json($catalog);
+        return response()->json(LabOrder::CATALOG);
     }
 
     /**
-     * GET /api/lab/orders?status=
+     * GET /api/lab/orders?status=&encounter_id=
      */
     public function index(Request $request)
     {
-        $status = $request->query('status');
-        // Frontend's status tabs use "resulted" as the terminal state where
-        // the database stores "completed" — translate at the query boundary.
-        $internalStatus = $status === 'resulted' ? 'completed' : $status;
+        $query = LabOrder::query();
 
-        $orders = LabOrder::query()
-            ->with(['result', 'catalogEntry'])
-            ->when($internalStatus, fn ($q) => $q->where('status', $internalStatus))
-            ->latest('ordered_at')
-            ->get();
+        if ($request->filled('status')) {
+            $query->where('status', $request->query('status'));
+        }
+        if ($request->filled('encounter_id')) {
+            $query->where('encounter_id', $request->query('encounter_id'));
+        }
 
-        return LabOrderResource::collection($orders);
+        $orders = $query->latest()->get();
+
+        $result = $orders->map(function (LabOrder $o) {
+            $d = $o->toArray();
+            $d['result'] = LabResult::where('lab_order_id', $o->id)->first();
+
+            return $d;
+        });
+
+        return response()->json($result);
     }
 
     /**
      * POST /api/lab/orders
-     * Body: { encounter_id, test_code, specimen_type, priority }
+     * Roles: doctor, nurse, admin
+     * Also creates the parent generic Order row (order_type=lab,
+     * target_department=laboratory) — every lab order is a specialization
+     * of a generic order, matching the reference's dual-table design.
      */
     public function store(Request $request)
     {
-        $validated = $request->validate([
-            'encounter_id' => ['required', 'integer', 'exists:encounters,id'],
-            'test_code' => ['required', 'string', 'exists:lab_test_catalog,test_code'],
-            'specimen_type' => ['nullable', 'string', 'max:100'],
-            'priority' => ['required', 'in:routine,urgent,stat'],
-        ]);
+        if (! $request->filled('encounter_id') || ! $request->filled('test_code')) {
+            return response()->json(['error' => 'missing_fields', 'message' => 'encounter_id and test_code are required'], 400);
+        }
 
-        $encounter = Encounter::findOrFail($validated['encounter_id']);
-        $catalogEntry = LabTestCatalog::find($validated['test_code']);
+        $encounter = Encounter::findOrFail($request->input('encounter_id'));
+        $loinc = LabOrder::CATALOG[$request->input('test_code')] ?? [];
 
-        $order = LabOrder::create([
-            'encounter_id' => $encounter->id,
-            'patient_id' => $encounter->patient_id,
-            'ordered_by' => $request->user()->id,
-            'test_name' => $catalogEntry->loinc_display,
-            'test_code' => $validated['test_code'],
-            'loinc_code' => $catalogEntry->loinc_code,
-            'specimen_type' => $validated['specimen_type'] ?? $catalogEntry->default_specimen_type,
-            'barcode' => 'LAB-'.strtoupper(Str::random(8)),
-            'status' => 'ordered',
-            'urgency' => $validated['priority'],
-            'ordered_at' => now(),
-        ]);
+        $labOrder = DB::transaction(function () use ($request, $encounter, $loinc) {
+            $genericOrder = Order::create([
+                'encounter_id' => $encounter->id,
+                'patient_id' => $encounter->patient_id,
+                'order_type' => 'lab',
+                'details' => $request->input('test_code'),
+                'priority' => $request->input('priority', 'routine'),
+                'target_department' => 'laboratory',
+                'ordered_by' => $request->user()->id,
+            ]);
 
-        return response()->json(new LabOrderResource($order->load('catalogEntry')), 201);
+            return LabOrder::create([
+                'order_id' => $genericOrder->id,
+                'encounter_id' => $encounter->id,
+                'patient_id' => $encounter->patient_id,
+                'test_code' => $request->input('test_code'),
+                'loinc_code' => $loinc['loinc_code'] ?? null,
+                'loinc_display' => $loinc['loinc_display'] ?? null,
+                'specimen_type' => $request->input('specimen_type'),
+                'barcode' => IdGenerator::barcode(),
+                'priority' => $request->input('priority', 'routine'),
+                'ordered_by' => $request->user()->id,
+                'client_uuid' => $request->input('client_uuid'),
+            ]);
+        });
+
+        AuditLogger::log($request->user(), 'order_lab_test', 'encounter', $encounter->id, $request->input('test_code'));
+
+        return response()->json($labOrder, 201);
     }
 
     /**
      * POST /api/lab/orders/{labOrder}/collect
+     * Roles: lab_tech, nurse, admin
      */
-    public function collect(LabOrder $labOrder)
+    public function collect(Request $request, LabOrder $labOrder)
     {
-        $labOrder->update(['status' => 'collected']);
+        $labOrder->update([
+            'status' => 'collected',
+            'collected_by' => $request->user()->id,
+            'collected_at' => now(),
+        ]);
 
-        return new LabOrderResource($labOrder->load('catalogEntry', 'result'));
+        AuditLogger::log($request->user(), 'collect_specimen', 'lab_order', $labOrder->id);
+
+        return response()->json($labOrder);
     }
 
     /**
      * POST /api/lab/orders/{labOrder}/receive
+     * Roles: lab_tech, admin
      */
-    public function receive(LabOrder $labOrder)
+    public function receive(Request $request, LabOrder $labOrder)
     {
-        $labOrder->update(['status' => 'received']);
+        $labOrder->update(['status' => 'received', 'received_at' => now()]);
 
-        return new LabOrderResource($labOrder->load('catalogEntry', 'result'));
+        AuditLogger::log($request->user(), 'receive_specimen', 'lab_order', $labOrder->id);
+
+        return response()->json($labOrder);
     }
 
     /**
      * POST /api/lab/orders/{labOrder}/result
-     * Body: { result_value, unit, reference_range, is_critical, is_abnormal, interpretation }
+     * Roles: lab_tech, admin
      */
     public function storeResult(Request $request, LabOrder $labOrder)
     {
-        $validated = $request->validate([
-            'result_value' => ['required', 'string', 'max:255'],
-            'unit' => ['nullable', 'string', 'max:50'],
-            'reference_range' => ['nullable', 'string', 'max:100'],
-            'interpretation' => ['nullable', 'string'],
-            'is_critical' => ['required', 'boolean'],
-            'is_abnormal' => ['required', 'boolean'],
+        $result = LabResult::create([
+            'lab_order_id' => $labOrder->id,
+            'result_value' => $request->input('result_value'),
+            'unit' => $request->input('unit'),
+            'reference_range' => $request->input('reference_range'),
+            'is_critical' => $request->input('is_critical', false),
+            'is_abnormal' => $request->input('is_abnormal', false),
+            'interpretation' => $request->input('interpretation'),
+            'entered_by' => $request->user()->id,
+            'client_uuid' => $request->input('client_uuid'),
         ]);
 
-        $result = DB::transaction(function () use ($validated, $request, $labOrder) {
-            $result = LabResult::create([
-                ...$validated,
-                'lab_order_id' => $labOrder->id,
-                'entered_by' => $request->user()->id,
-                'result_date' => now(),
-            ]);
+        $labOrder->update(['status' => 'resulted']);
 
-            $labOrder->update(['status' => 'completed']);
+        AuditLogger::log($request->user(), 'enter_lab_result', 'lab_order', $labOrder->id, 'critical='.($result->is_critical ? 'true' : 'false'));
 
-            if ($result->is_critical) {
-                SystemAlert::create([
-                    'type' => 'critical_result',
-                    'message' => "Critical lab result for order #{$labOrder->id} ({$labOrder->test_name})",
-                    'severity' => 'critical',
-                    'is_resolved' => false,
-                ]);
-            }
+        return response()->json($result, 201);
+    }
 
-            return $result;
-        });
+    /**
+     * POST /api/lab/results/{labResult}/verify
+     * Roles: lab_tech, admin
+     */
+    public function verify(Request $request, LabResult $labResult)
+    {
+        $labResult->update(['verified_by' => $request->user()->id, 'verified_at' => now()]);
+        LabOrder::where('id', $labResult->lab_order_id)->update(['status' => 'verified']);
 
-        return response()->json(new LabResultResource($result), 201);
+        AuditLogger::log($request->user(), 'verify_lab_result', 'lab_result', $labResult->id);
+
+        return response()->json($labResult);
+    }
+
+    /**
+     * POST /api/lab/results/{labResult}/acknowledge-critical
+     * Roles: doctor, nurse, admin
+     */
+    public function acknowledgeCritical(Request $request, LabResult $labResult)
+    {
+        $labResult->update(['critical_alert_acknowledged' => true]);
+
+        AuditLogger::log($request->user(), 'acknowledge_critical_result', 'lab_result', $labResult->id);
+
+        return response()->json($labResult);
     }
 
     /**
      * GET /api/lab/critical-unacknowledged
-     * Consultation.jsx only reads the array length, so any array shape works.
      */
     public function criticalUnacknowledged()
     {
-        $results = LabResult::where('is_critical', true)->whereNull('verified_by')->get();
-
-        return LabResultResource::collection($results);
+        return response()->json(LabResult::where('is_critical', true)->where('critical_alert_acknowledged', false)->get());
     }
 }

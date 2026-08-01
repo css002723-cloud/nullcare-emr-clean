@@ -6,13 +6,15 @@ use Illuminate\Database\Eloquent\Model;
 
 class Invoice extends Model
 {
-    const UPDATED_AT = null;
+    protected $fillable = [
+        'client_uuid', 'invoice_number', 'encounter_id', 'patient_id', 'payer_type',
+        'payer_name', 'total_amount', 'amount_paid', 'status', 'payment_reference',
+        'created_by', 'synced',
+    ];
 
-    protected $fillable = ['patient_id', 'encounter_id', 'payer_type', 'total_amount', 'status', 'created_by'];
-
-    public function patient()
+    protected function casts(): array
     {
-        return $this->belongsTo(Patient::class);
+        return ['synced' => 'boolean'];
     }
 
     public function encounter()
@@ -20,18 +22,18 @@ class Invoice extends Model
         return $this->belongsTo(Encounter::class);
     }
 
+    public function patient()
+    {
+        return $this->belongsTo(Patient::class);
+    }
+
     public function createdBy()
     {
         return $this->belongsTo(User::class, 'created_by');
     }
 
-    public function items()
+    public function lineItems()
     {
-        return $this->hasMany(InvoiceItem::class);
-    }
-
-    public function payments()
-    {
-        return $this->hasMany(Payment::class);
+        return $this->hasMany(InvoiceLineItem::class);
     }
 }

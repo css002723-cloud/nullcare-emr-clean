@@ -3,98 +3,78 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\DrugStock;
 use App\Models\Encounter;
 use App\Models\Invoice;
 use App\Models\LabOrder;
 use App\Models\LabResult;
 use App\Models\Patient;
-use App\Models\PharmacyStock;
-use Illuminate\Support\Carbon;
 
 class DashboardController extends Controller
 {
     /**
      * GET /api/dashboard/summary
-     * Shape matched exactly to frontend/src/pages/Dashboard.jsx — every
-     * key here is read directly by that component, so don't rename
-     * anything here without updating that file too.
+     * NOTE: uses its own inline ["discharged","closed","deceased"] list
+     * for "active encounters" — deliberately does NOT include "cancelled"
+     * here, matching the reference exactly (dashboard.py doesn't import
+     * the shared CLOSED_STAGES constant, it hardcodes its own). A
+     * cancelled reception mistake still counts toward "active" in this
+     * one metric — porting the reference as-is, not silently fixing it.
      */
     public function summary()
     {
-        return response()->json([
-            'total_patients' => Patient::whereNull('is_duplicate_of')->count(),
-            'active_encounters' => Encounter::where('status', 'open')->count(),
-            'admitted_patients' => Encounter::where('status', 'admitted')->count(),
-            'today_registrations' => Patient::whereDate('created_at', Carbon::today())->count(),
+        $today = now()->toDateString();
+        $notClosed = ['discharged', 'closed', 'deceased'];
 
-            'pending_lab_orders' => LabOrder::whereNotIn('status', ['completed', 'cancelled'])->count(),
-            'critical_results_unacknowledged' => LabResult::where('is_critical', true)
-                ->whereNull('verified_by')
-                ->count(),
-            'outstanding_billing_total' => $this->outstandingBillingTotal(),
-            'low_stock_drug_count' => PharmacyStock::whereColumn('quantity_available', '<=', 'reorder_threshold')->count(),
+        $totalPatients = Patient::whereNull('merged_into_patient_id')->count();
+        $activeEncounters = Encounter::whereNotIn('stage', $notClosed)->count();
+        $todayRegistrations = Encounter::whereDate('created_at', $today)->count();
+        $admitted = Encounter::where('stage', 'admitted')->count();
 
-            'visits_last_7_days' => $this->visitsLast7Days(),
-            'department_queue_counts' => $this->departmentQueueCounts(),
-            'priority_breakdown' => $this->priorityBreakdown(),
-        ]);
-    }
-
-    /**
-     * Sum of (total_amount - amount already paid) across every invoice
-     * that isn't fully settled yet.
-     */
-    private function outstandingBillingTotal(): float
-    {
-        return Invoice::whereIn('status', ['unpaid', 'partially_paid'])
-            ->withSum('payments', 'amount_paid')
-            ->get()
-            ->sum(fn ($invoice) => $invoice->total_amount - ($invoice->payments_sum_amount_paid ?? 0));
-    }
-
-    /**
-     * [{ date: "2026-07-06", count: 12 }, ...] for the last 7 calendar days,
-     * including days with zero visits so the chart doesn't have gaps.
-     */
-    private function visitsLast7Days(): array
-    {
-        $counts = Encounter::selectRaw('DATE(created_at) as date, COUNT(*) as count')
-            ->where('created_at', '>=', Carbon::today()->subDays(6))
-            ->groupBy('date')
-            ->pluck('count', 'date');
-
-        $days = [];
-        for ($i = 6; $i >= 0; $i--) {
-            $date = Carbon::today()->subDays($i)->toDateString();
-            $days[] = ['date' => $date, 'count' => (int) ($counts[$date] ?? 0)];
+        $deptCounts = Encounter::whereNotIn('stage', $notClosed)
+            ->selectRaw('current_department, COUNT(*) as count')
+            ->groupBy('current_department')
+            ->pluck('count', 'current_department');
+        $departmentQueueCounts = [];
+        foreach ($deptCounts as $dept => $count) {
+            $departmentQueueCounts[$dept ?: 'unassigned'] = $count;
         }
 
-        return $days;
-    }
+        $pendingLab = LabOrder::whereIn('status', ['ordered', 'collected', 'received'])->count();
+        $criticalUnack = LabResult::where('is_critical', true)->where('critical_alert_acknowledged', false)->count();
 
-    /**
-     * { "OPD": 4, "Ward 3": 2, ... } — open encounters grouped by department name.
-     */
-    private function departmentQueueCounts(): array
-    {
-        return Encounter::where('status', 'open')
-            ->join('departments', 'departments.id', '=', 'encounters.department_id')
-            ->selectRaw('departments.name as name, COUNT(*) as count')
-            ->groupBy('departments.name')
-            ->pluck('count', 'name')
-            ->toArray();
-    }
+        $outstandingInvoices = Invoice::whereIn('status', ['unpaid', 'partial'])->get();
+        $outstandingTotal = $outstandingInvoices->sum(fn ($i) => $i->total_amount - $i->amount_paid);
 
-    /**
-     * { "emergency": 1, "urgent": 3, "routine": 8 } — open encounters by triage category.
-     */
-    private function priorityBreakdown(): array
-    {
-        return Encounter::where('status', 'open')
-            ->whereNotNull('triage_category')
-            ->selectRaw('triage_category, COUNT(*) as count')
-            ->groupBy('triage_category')
-            ->pluck('count', 'triage_category')
-            ->toArray();
+        $lowStock = DrugStock::whereColumn('quantity_on_hand', '<=', 'reorder_level')->count();
+
+        $visitsLast7Days = [];
+        for ($i = 6; $i >= 0; $i--) {
+            $day = now()->subDays($i)->toDateString();
+            $visitsLast7Days[] = ['date' => $day, 'count' => Encounter::whereDate('created_at', $day)->count()];
+        }
+
+        $priorityCounts = Encounter::whereNotIn('stage', $notClosed)
+            ->selectRaw('priority, COUNT(*) as count')
+            ->groupBy('priority')
+            ->pluck('count', 'priority');
+        $priorityBreakdown = [];
+        foreach ($priorityCounts as $priority => $count) {
+            $priorityBreakdown[$priority ?: 'routine'] = $count;
+        }
+
+        return response()->json([
+            'total_patients' => $totalPatients,
+            'active_encounters' => $activeEncounters,
+            'today_registrations' => $todayRegistrations,
+            'admitted_patients' => $admitted,
+            'department_queue_counts' => $departmentQueueCounts,
+            'pending_lab_orders' => $pendingLab,
+            'critical_results_unacknowledged' => $criticalUnack,
+            'outstanding_billing_total' => $outstandingTotal,
+            'low_stock_drug_count' => $lowStock,
+            'visits_last_7_days' => $visitsLast7Days,
+            'priority_breakdown' => $priorityBreakdown,
+        ]);
     }
 }

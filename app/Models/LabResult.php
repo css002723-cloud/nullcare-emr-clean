@@ -6,31 +6,25 @@ use Illuminate\Database\Eloquent\Model;
 
 class LabResult extends Model
 {
-    const CREATED_AT = null;
     const UPDATED_AT = null;
 
     protected $fillable = [
-        'lab_order_id', 'result_value', 'unit', 'reference_range', 'interpretation',
-        'is_critical', 'is_abnormal', 'entered_by', 'verified_by', 'result_date',
+        'client_uuid', 'lab_order_id', 'result_value', 'unit', 'reference_range',
+        'is_critical', 'is_abnormal', 'interpretation', 'entered_by', 'verified_by',
+        'verified_at', 'critical_alert_acknowledged', 'synced',
     ];
 
     protected function casts(): array
     {
-        return ['is_critical' => 'boolean', 'is_abnormal' => 'boolean', 'result_date' => 'datetime'];
+        return [
+            'is_critical' => 'boolean', 'is_abnormal' => 'boolean',
+            'critical_alert_acknowledged' => 'boolean', 'synced' => 'boolean',
+            'verified_at' => 'datetime',
+        ];
     }
 
     public function labOrder()
     {
         return $this->belongsTo(LabOrder::class);
-    }
-
-    public function enteredBy()
-    {
-        return $this->belongsTo(User::class, 'entered_by');
-    }
-
-    public function verifiedBy()
-    {
-        return $this->belongsTo(User::class, 'verified_by');
     }
 }

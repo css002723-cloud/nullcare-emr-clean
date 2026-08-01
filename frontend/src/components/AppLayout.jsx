@@ -2,12 +2,27 @@ import { useState } from "react";
 import { Menu, HeartPulse } from "lucide-react";
 import Sidebar from "./Sidebar";
 import SyncStatusBar from "./SyncStatusBar";
+import ForcedPasswordChange from "./ForcedPasswordChange";
+import LockScreen from "./LockScreen";
+import { useAuth } from "../context/AuthContext";
+import { useIdleLock } from "../hooks/useIdleLock";
 
 export default function AppLayout({ children }) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const { user } = useAuth();
+
+  const mustResetPassword = !!user?.must_reset_password;
+  // Idle-lock only makes sense once the account is in a normal, usable state — don't
+  // race it against the forced password-change screen.
+  const { locked, unlock } = useIdleLock(!!user && !mustResetPassword);
+
+  if (mustResetPassword) {
+    return <ForcedPasswordChange />;
+  }
 
   return (
     <div className="flex min-h-screen bg-paper">
+      {locked && <LockScreen onUnlock={unlock} />}
       <a href="#main-content" className="skip-link">Skip to main content</a>
 
       <Sidebar open={menuOpen} onClose={() => setMenuOpen(false)} />

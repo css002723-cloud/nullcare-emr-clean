@@ -4,90 +4,47 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Http\Resources\EncounterResource;
+use App\Http\Resources\PatientResource;
+use App\Models\ClinicalNote;
 use App\Models\Encounter;
 use App\Models\Patient;
+use App\Services\AuditLogger;
+use App\Services\IdGenerator;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Validator;
 
 class EncounterController extends Controller
 {
     /**
-     * GET /api/encounters?department=triage|consultation
-     * Powers Triage.jsx and Consultation.jsx work queues, filtered by the
-     * encounter's current pipeline stage (not a physical hospital department).
+     * GET /api/encounters?department=&stage=&active_only=true
+     * Department worklist / queue. Emergency-flagged encounters always
+     * sort to the top, regardless of arrival order.
      */
     public function index(Request $request)
     {
-        $stage = $request->query('department');
+        $query = Encounter::query();
 
-        $encounters = Encounter::query()
-            ->with('patient')
-            ->when($stage, fn ($query) => $query->where('stage', $stage))
-            ->whereNotIn('status', ['closed', 'discharged', 'referred_out', 'died'])
-            ->latest()
-            ->get();
-
-        return EncounterResource::collection($encounters);
-    }
-
-    /**
-     * POST /api/encounters
-     * Body: { patient_id, patient_client_uuid?, visit_type, chief_complaint,
-     *         priority, client_uuid }
-     * Reception opens the visit immediately after registering the patient —
-     * no clinician or department is known yet, hence both are nullable and
-     * left blank until triage/consultation picks the encounter up.
-     */
-    public function store(Request $request)
-    {
-        $validator = Validator::make($request->all(), [
-            'patient_id' => ['required_without:patient_client_uuid', 'nullable', 'integer', 'exists:patients,id'],
-            'patient_client_uuid' => ['required_without:patient_id', 'nullable', 'string', 'max:36'],
-            'visit_type' => ['required', 'in:outpatient,inpatient,emergency'],
-            'chief_complaint' => ['nullable', 'string'],
-            'priority' => ['nullable', 'in:routine,urgent,emergency'],
-            'client_uuid' => ['nullable', 'string', 'max:36'],
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json(['message' => 'Validation failed.', 'errors' => $validator->errors()], 422);
+        if ($request->filled('department')) {
+            $query->where('current_department', $request->query('department'));
+        }
+        if ($request->filled('stage')) {
+            $query->where('stage', $request->query('stage'));
+        }
+        if ($request->query('active_only', 'true') === 'true') {
+            $query->whereNotIn('stage', Encounter::CLOSED_STAGES);
         }
 
-        $data = $validator->validated();
+        $encounters = $query->orderByDesc('is_emergency')->orderByDesc('created_at')->limit(200)->get();
 
-        if (! empty($data['client_uuid'])) {
-            $existing = Encounter::where('client_uuid', $data['client_uuid'])->first();
-            if ($existing) {
-                return new EncounterResource($existing->load('patient'));
-            }
-        }
+        $result = $encounters->map(function (Encounter $e) {
+            $d = (new EncounterResource($e))->toArray(request());
+            $patient = Patient::find($e->patient_id);
+            $d['patient'] = $patient ? (new PatientResource($patient))->toArray(request()) : null;
+            $d['referral'] = in_array($e->stage, Encounter::CLOSED_STAGES, true) ? null : $e->activeReferralSummary();
 
-        $patientId = $data['patient_id'] ?? null;
-        if (! $patientId && ! empty($data['patient_client_uuid'])) {
-            $patientId = Patient::where('client_uuid', $data['patient_client_uuid'])->value('id');
-        }
-
-        if (! $patientId) {
-            return response()->json(['message' => 'Could not resolve the patient for this encounter.'], 422);
-        }
-
-        $encounter = DB::transaction(function () use ($data, $patientId, $request) {
-            return Encounter::create([
-                'encounter_number' => $this->generateEncounterNumber(),
-                'client_uuid' => $data['client_uuid'] ?? null,
-                'patient_id' => $patientId,
-                'clinician_id' => $request->user()->id,
-                'encounter_type' => $data['visit_type'],
-                'presenting_complaint' => $data['chief_complaint'] ?? null,
-                'triage_category' => $data['priority'] ?? 'routine',
-                'status' => 'open',
-                'stage' => 'triage',
-                'current_department' => 'triage',
-            ]);
+            return $d;
         });
 
-        return response()->json(new EncounterResource($encounter->load('patient')), 201);
+        return response()->json($result);
     }
 
     /**
@@ -95,49 +52,172 @@ class EncounterController extends Controller
      */
     public function show(Encounter $encounter)
     {
-        $encounter->load([
-            'patient.allergies',
-            'vitalSigns',
-            'labOrders.result',
-            'prescriptions',
-            'clinicalNotes',
-            'clinicalOrders',
-            'referrals',
+        $d = (new EncounterResource($encounter))->toArray(request());
+        $patient = Patient::find($encounter->patient_id);
+        $d['patient'] = $patient ? (new PatientResource($patient))->toArray(request()) : null;
+        $d['referral'] = in_array($encounter->stage, Encounter::CLOSED_STAGES, true) ? null : $encounter->activeReferralSummary();
+
+        return response()->json($d);
+    }
+
+    /**
+     * GET /api/encounters/by-mrn/{mrn}
+     * MRN identifies a specific VISIT, not a person.
+     */
+    public function showByMrn(string $mrn)
+    {
+        $encounter = Encounter::where('mrn', strtoupper(trim($mrn)))->first();
+
+        if (! $encounter) {
+            return response()->json(['error' => 'not_found', 'message' => "No visit found with MRN {$mrn}"], 404);
+        }
+
+        return $this->show($encounter);
+    }
+
+    /**
+     * POST /api/encounters
+     * Roles: reception, nurse, admin
+     * Opens a new encounter for an EXISTING patient — a returning patient
+     * is never re-registered, just resolved (by patient_uid or search)
+     * and passed in here. Every encounter gets a fresh MRN, since MRN is
+     * per-visit, not permanent (see Patient.patient_uid for that).
+     */
+    public function store(Request $request)
+    {
+        if (! $request->filled('patient_id')) {
+            return response()->json(['error' => 'missing_fields', 'message' => 'patient_id is required'], 400);
+        }
+
+        $patient = Patient::findOrFail($request->input('patient_id'));
+
+        do {
+            $mrn = IdGenerator::mrn();
+        } while (Encounter::where('mrn', $mrn)->exists());
+
+        $visitType = $request->input('visit_type', 'outpatient');
+        $priority = $request->input('priority', 'routine');
+        $isEmergency = $visitType === 'emergency' || $priority === 'emergency';
+
+        $encounter = Encounter::create([
+            'encounter_number' => IdGenerator::encounterNumber(),
+            'mrn' => $mrn,
+            'patient_id' => $patient->id,
+            'visit_type' => $visitType,
+            'stage' => 'registered',
+            'priority' => $priority,
+            'is_emergency' => $isEmergency,
+            'chief_complaint' => $request->input('chief_complaint'),
+            'current_department' => $isEmergency ? 'emergency' : 'triage',
+            'registered_by' => $request->user()->id,
+            'client_uuid' => $request->input('client_uuid'),
         ]);
+
+        AuditLogger::log(
+            $request->user(), 'create_encounter', 'encounter', $encounter->id,
+            "patient_id={$patient->id} mrn={$mrn}".($isEmergency ? ' EMERGENCY' : '')
+        );
+
+        $d = (new EncounterResource($encounter))->toArray($request);
+        $d['patient'] = new PatientResource($patient);
+
+        return response()->json($d, 201);
+    }
+
+    /**
+     * POST /api/encounters/{encounter}/transition
+     * The core hand-off mechanism — moves stage/department/clinician/
+     * priority/ward/bed. e.g. nurse completes triage -> stage=
+     * waiting_consultation, department=consultation; doctor refers to lab
+     * -> department=laboratory (encounter stays in_consultation).
+     */
+    public function transition(Request $request, Encounter $encounter)
+    {
+        if ($request->has('stage')) {
+            $encounter->stage = $request->input('stage');
+        }
+        if ($request->has('current_department')) {
+            $encounter->current_department = $request->input('current_department');
+        }
+        if ($request->has('assigned_clinician_id')) {
+            $encounter->assigned_clinician_id = $request->input('assigned_clinician_id');
+        }
+        if ($request->has('priority')) {
+            $encounter->priority = $request->input('priority');
+            $encounter->is_emergency = $request->input('priority') === 'emergency' || $encounter->visit_type === 'emergency';
+        }
+        if ($request->has('ward')) {
+            $encounter->ward = $request->input('ward');
+        }
+        if ($request->has('bed')) {
+            $encounter->bed = $request->input('bed');
+        }
+
+        $encounter->save();
+
+        AuditLogger::log($request->user(), 'transition_encounter', 'encounter', $encounter->id, json_encode($request->all()));
 
         return new EncounterResource($encounter);
     }
 
     /**
      * POST /api/encounters/{encounter}/close
-     * Body: { outcome, disposition_notes }
-     * outcome: discharged | admitted | referred_out | died
+     * Roles: doctor, nurse, reception, admin
+     * outcome: discharged | admitted | referred_out | died | cancelled
+     * Reception may only use "cancelled" — a mistaken registration or
+     * no-show, distinct from a clinical discharge since it doesn't imply
+     * the patient was ever actually seen. Clinical dispositions stay
+     * restricted to clinical staff.
      */
     public function close(Request $request, Encounter $encounter)
     {
-        $validated = $request->validate([
-            'outcome' => ['required', 'in:discharged,admitted,referred_out,died'],
-            'disposition_notes' => ['nullable', 'string'],
-        ]);
+        $validOutcomes = ['discharged', 'admitted', 'referred_out', 'died', 'cancelled'];
+        $outcome = $request->input('outcome');
 
-        $encounter->update([
-            'status' => $validated['outcome'],
-            'disposition_notes' => $validated['disposition_notes'] ?? null,
-            'stage' => 'completed',
-        ]);
+        if (! in_array($outcome, $validOutcomes, true)) {
+            return response()->json(['error' => 'invalid_outcome', 'message' => 'outcome must be one of: '.implode(', ', $validOutcomes)], 400);
+        }
 
-        return new EncounterResource($encounter->fresh(['patient']));
+        if ($request->user()->role === 'reception' && $outcome !== 'cancelled') {
+            return response()->json(['error' => 'forbidden', 'message' => 'Reception can only cancel a registration, not record a clinical disposition.'], 403);
+        }
+
+        $encounter->outcome = $outcome;
+        $encounter->disposition_notes = $request->input('disposition_notes');
+        $encounter->stage = match ($outcome) {
+            'died' => 'deceased',
+            'admitted' => 'admitted',
+            'cancelled' => 'cancelled',
+            default => 'discharged',
+        };
+        $encounter->closed_at = now();
+
+        if ($outcome === 'died') {
+            $patient = Patient::find($encounter->patient_id);
+            $patient->update(['is_deceased' => true, 'date_of_death' => now()]);
+
+            ClinicalNote::create([
+                'encounter_id' => $encounter->id,
+                'patient_id' => $encounter->patient_id,
+                'note_type' => 'death',
+                'body' => $request->input('disposition_notes', ''),
+                'author_id' => $request->user()->id,
+                'author_role' => $request->user()->role,
+            ]);
+        }
+
+        $encounter->save();
+
+        AuditLogger::log($request->user(), 'close_encounter', 'encounter', $encounter->id, $outcome);
+
+        return new EncounterResource($encounter);
     }
 
-    private function generateEncounterNumber(): string
+    /**
+     * GET /api/encounters/note-templates
+     */
+    public function noteTemplates()
     {
-        $year = now()->format('Y');
-
-        do {
-            $sequence = str_pad((string) random_int(1, 999999), 6, '0', STR_PAD_LEFT);
-            $candidate = "ENC-{$year}-{$sequence}";
-        } while (Encounter::where('encounter_number', $candidate)->exists());
-
-        return $candidate;
+        return response()->json(ClinicalNote::TEMPLATES);
     }
 }

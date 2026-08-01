@@ -3,6 +3,7 @@ import { ScanLine } from "lucide-react";
 import api from "../services/api";
 import { Card, Badge, Button, Field, Input, Select, Textarea, LoadingRow, EmptyState } from "../components/ui";
 import PageHeader from "../components/PageHeader";
+import PatientLookup from "../components/PatientLookup";
 import { useAuth } from "../context/AuthContext";
 
 const MODALITIES = { CR: "X-ray (CR)", CT: "CT scan", US: "Ultrasound", MR: "MRI", DX: "Digital X-ray" };
@@ -41,17 +42,28 @@ export default function Imaging() {
 }
 
 function OrderPanel({ onOrdered }) {
-  const [form, setForm] = useState({ encounter_id: "", modality: "", study_description: "", body_site: "", clinical_indication: "", is_pregnancy_checked: false, priority: "routine" });
+  const [encounterId, setEncounterId] = useState(null);
+  const [form, setForm] = useState({ modality: "", study_description: "", body_site: "", clinical_indication: "", is_pregnancy_checked: false, priority: "routine" });
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const [resetKey, setResetKey] = useState(0);
 
   async function submit(e) {
     e.preventDefault();
-    if (!form.encounter_id || !form.modality) return;
+    setError("");
+    if (!encounterId || !form.modality) {
+      setError("Select a patient's visit and a modality before requesting the study.");
+      return;
+    }
     setSaving(true);
     try {
-      await api.post("/imaging/orders", { ...form, encounter_id: Number(form.encounter_id) });
-      setForm({ encounter_id: "", modality: "", study_description: "", body_site: "", clinical_indication: "", is_pregnancy_checked: false, priority: "routine" });
+      await api.post("/imaging/orders", { ...form, encounter_id: encounterId });
+      setEncounterId(null);
+      setForm({ modality: "", study_description: "", body_site: "", clinical_indication: "", is_pregnancy_checked: false, priority: "routine" });
+      setResetKey((k) => k + 1);
       onOrdered();
+    } catch (err) {
+      setError(err.response?.data?.message || "Couldn't request the study — please try again.");
     } finally {
       setSaving(false);
     }
@@ -61,7 +73,9 @@ function OrderPanel({ onOrdered }) {
     <Card className="bg-surface-alt border-line">
       <p className="font-display text-lg mb-3">Request imaging study</p>
       <form onSubmit={submit} className="grid md:grid-cols-2 gap-3">
-        <Field label="Encounter ID"><Input value={form.encounter_id} onChange={(e) => setForm({ ...form, encounter_id: e.target.value })} /></Field>
+        <div className="md:col-span-2">
+          <PatientLookup key={resetKey} requireEncounter label="Patient" onSelect={({ encounterId }) => setEncounterId(encounterId)} />
+        </div>
         <Field label="Modality">
           <Select value={form.modality} onChange={(e) => setForm({ ...form, modality: e.target.value })}>
             <option value="">Select…</option>
@@ -75,6 +89,7 @@ function OrderPanel({ onOrdered }) {
           <input type="checkbox" checked={form.is_pregnancy_checked} onChange={(e) => setForm({ ...form, is_pregnancy_checked: e.target.checked })} />
           Pregnancy status confirmed (required safety check before ionizing radiation studies)
         </label>
+        {error && <p className="text-sm text-alert md:col-span-2">{error}</p>}
         <Button type="submit" disabled={saving} className="md:col-span-2">{saving ? "Requesting…" : "Request study"}</Button>
       </form>
     </Card>

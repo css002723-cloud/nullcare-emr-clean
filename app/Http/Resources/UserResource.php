@@ -14,12 +14,12 @@ class UserResource extends JsonResource
             'full_name' => $this->full_name,
             'username' => $this->username,
             'email' => $this->email,
-            'role' => $this->whenLoaded('role', fn () => $this->role->name, $this->role_id),
-            'department' => $this->whenLoaded('department', fn () => $this->department?->name),
+            'role' => $this->role,
+            'department' => $this->department,
             'phone' => $this->phone,
             'is_active' => (bool) $this->is_active,
-            'status' => $this->status,
-            'last_login_at' => $this->last_login_at,
+            'must_reset_password' => (bool) $this->must_reset_password,
+            'created_at' => $this->created_at?->toIso8601String(),
         ];
     }
 }

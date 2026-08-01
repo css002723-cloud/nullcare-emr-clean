@@ -34,11 +34,12 @@ export default function AdminUsers() {
       ) : (
         <Card className="p-0 overflow-hidden">
           <div className="overflow-x-auto">
-          <table className="w-full min-w-[640px] text-sm">
+          <table className="w-full min-w-[760px] text-sm">
             <thead className="bg-surface-alt text-accent text-xs uppercase tracking-wide">
               <tr>
                 <th className="text-left px-4 py-3">Name</th>
                 <th className="text-left px-4 py-3">Username</th>
+                <th className="text-left px-4 py-3">Email</th>
                 <th className="text-left px-4 py-3">Role</th>
                 <th className="text-left px-4 py-3">Department</th>
                 <th className="text-left px-4 py-3">Status</th>
@@ -57,7 +58,7 @@ export default function AdminUsers() {
 }
 
 function NewUserForm({ onSaved }) {
-  const [form, setForm] = useState({ full_name: "", username: "", password: "", role: "reception", department: "", email: "", phone: "" });
+  const [form, setForm] = useState({ first_name: "", last_name: "", username: "", password: "", role: "reception", department: "", email: "", phone: "" });
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
 
@@ -78,8 +79,10 @@ function NewUserForm({ onSaved }) {
   return (
     <Card>
       <form onSubmit={submit} className="grid md:grid-cols-3 gap-3">
-        <Field label="Full name" required><Input value={form.full_name} onChange={(e) => setForm({ ...form, full_name: e.target.value })} /></Field>
+        <Field label="First name" required><Input value={form.first_name} onChange={(e) => setForm({ ...form, first_name: e.target.value })} /></Field>
+        <Field label="Last name / surname" required><Input value={form.last_name} onChange={(e) => setForm({ ...form, last_name: e.target.value })} /></Field>
         <Field label="Username" required><Input value={form.username} onChange={(e) => setForm({ ...form, username: e.target.value })} /></Field>
+        <Field label="Email" required><Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></Field>
         <Field label="Temporary password" required><Input type="text" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} /></Field>
         <Field label="Role">
           <Select value={form.role} onChange={(e) => setForm({ ...form, role: e.target.value })}>
@@ -118,6 +121,7 @@ function UserRow({ user, onChanged }) {
     <tr className="border-t border-line">
       <td className="px-4 py-3 font-medium">{user.full_name}</td>
       <td className="px-4 py-3 text-ink/70">{user.username}</td>
+      <td className="px-4 py-3 text-ink/70">{user.email}</td>
       <td className="px-4 py-3">
         {editingRole ? (
           <div className="flex items-center gap-1">
@@ -134,7 +138,10 @@ function UserRow({ user, onChanged }) {
       </td>
       <td className="px-4 py-3 text-ink/70">{user.department || "—"}</td>
       <td className="px-4 py-3">
-        <Badge tone={user.is_active ? "success" : "muted"}>{user.is_active ? "Active" : "Disabled"}</Badge>
+        <div className="flex flex-wrap gap-1">
+          <Badge tone={user.is_active ? "success" : "muted"}>{user.is_active ? "Active" : "Disabled"}</Badge>
+          {user.password_expired && <Badge tone="warning">Password expired</Badge>}
+        </div>
       </td>
       <td className="px-4 py-3">
         <div className="flex gap-2">

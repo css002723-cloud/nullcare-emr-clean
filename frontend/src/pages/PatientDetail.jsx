@@ -1,26 +1,26 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import { FileDown } from "lucide-react";
 import api from "../services/api";
 import { Card, Badge, Button, LoadingRow, Field, Input, Select, priorityTone, calcAge } from "../components/ui";
 import PatientRibbon from "../components/PatientRibbon";
 
 export default function PatientDetail() {
-  const { id } = useParams();
+  const { uid } = useParams();
   const navigate = useNavigate();
   const [patient, setPatient] = useState(null);
   const [encounters, setEncounters] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showAllergyForm, setShowAllergyForm] = useState(false);
   const [allergy, setAllergy] = useState({ substance: "", reaction: "", severity: "mild" });
+  const [exporting, setExporting] = useState(false);
 
   async function load() {
     setLoading(true);
     try {
-      const [pRes, hRes] = await Promise.all([
-        api.get(`/patients/${id}`),
-        api.get(`/patients/${id}/history`),
-      ]);
+      const pRes = await api.get(`/patients/by-uid/${uid}`);
       setPatient(pRes.data);
+      const hRes = await api.get(`/patients/${pRes.data.id}/history`);
       setEncounters(hRes.data);
     } catch {
       // offline with nothing cached — leave blank, page will show empty state
@@ -29,15 +29,31 @@ export default function PatientDetail() {
     }
   }
 
-  useEffect(() => { load(); }, [id]);
+  useEffect(() => { load(); }, [uid]);
 
   async function addAllergy(e) {
     e.preventDefault();
-    if (!allergy.substance) return;
-    await api.post(`/patients/${id}/allergies`, allergy);
+    if (!allergy.substance || !patient) return;
+    await api.post(`/patients/${patient.id}/allergies`, allergy);
     setAllergy({ substance: "", reaction: "", severity: "mild" });
     setShowAllergyForm(false);
     load();
+  }
+
+  async function exportRecord() {
+    if (!patient) return;
+    setExporting(true);
+    try {
+      const res = await api.get(`/patients/${patient.id}/export`, { responseType: "blob" });
+      const url = URL.createObjectURL(new Blob([res.data], { type: "application/pdf" }));
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `nullcare-${patient.patient_uid}-full-record.pdf`;
+      a.click();
+      URL.revokeObjectURL(url);
+    } finally {
+      setExporting(false);
+    }
   }
 
   if (loading) return <LoadingRow label="Loading patient record…" />;
@@ -45,7 +61,14 @@ export default function PatientDetail() {
 
   return (
     <div className="space-y-5 -mt-6 md:-mt-8">
-      <PatientRibbon patient={patient} />
+      <PatientRibbon
+        patient={patient}
+        extra={
+          <Button size="sm" variant="secondary" icon={FileDown} onClick={exportRecord} disabled={exporting}>
+            {exporting ? "Preparing…" : "Export full record"}
+          </Button>
+        }
+      />
 
       <div className="grid md:grid-cols-3 gap-5">
         <Card className="md:col-span-2">
@@ -53,6 +76,7 @@ export default function PatientDetail() {
             <p className="font-display text-lg">Demographics</p>
           </div>
           <dl className="grid grid-cols-2 gap-y-2 text-sm">
+            <dt className="text-ink/50">Patient ID (permanent)</dt><dd className="mrn-mono">{patient.patient_uid}</dd>
             <dt className="text-ink/50">National ID</dt><dd>{patient.national_id || "—"}</dd>
             <dt className="text-ink/50">Phone</dt><dd>{patient.phone || "—"}</dd>
             <dt className="text-ink/50">Village / TA</dt><dd>{patient.village || "—"} / {patient.traditional_authority || "—"}</dd>
@@ -60,8 +84,6 @@ export default function PatientDetail() {
             <dt className="text-ink/50">Occupation</dt><dd>{patient.occupation || "—"}</dd>
             <dt className="text-ink/50">Guardian</dt><dd>{patient.guardian_name ? `${patient.guardian_name} (${patient.guardian_relationship || "n/a"})` : "—"}</dd>
             <dt className="text-ink/50">Category</dt><dd><Badge>{patient.patient_category}</Badge></dd>
-            <dt className="text-ink/50">Current status</dt><dd><Badge tone={patient.completion_status === "completed" ? "success" : "warning"}>{patient.completion_status === "completed" ? "Completed" : "Not completed"}</Badge></dd>
-            <dt className="text-ink/50">Referred doctor</dt><dd>{patient.referred_doctor ? `${patient.referred_doctor}${patient.referred_doctor_department ? ` · ${patient.referred_doctor_department}` : ""}` : "—"}</dd>
             <dt className="text-ink/50">Consent — research</dt><dd>{patient.consent_research ? "Given" : "Not given"}</dd>
           </dl>
         </Card>
@@ -116,17 +138,27 @@ export default function PatientDetail() {
             {encounters.map((e) => (
               <div
                 key={e.id}
-                className="py-3 flex items-center justify-between cursor-pointer hover:bg-surface-alt/60 -mx-2 px-2 rounded"
+                className="py-3 cursor-pointer hover:bg-surface-alt/60 -mx-2 px-2 rounded"
                 onClick={() => navigate(`/encounters/${e.id}`)}
               >
-                <div>
-                  <p className="text-sm font-medium mrn-mono">{e.encounter_number}</p>
-                  <p className="text-xs text-ink/50">{e.chief_complaint || "No chief complaint recorded"}</p>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium mrn-mono">{e.mrn}</p>
+                    <p className="text-xs text-ink/50">{e.chief_complaint || "No chief complaint recorded"}</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {e.is_emergency && <Badge tone="critical">emergency</Badge>}
+                    <Badge tone={priorityTone(e.priority)}>{e.priority}</Badge>
+                    <Badge tone="muted">{e.stage.replace("_", " ")}</Badge>
+                  </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <Badge tone={priorityTone(e.priority)}>{e.priority}</Badge>
-                  <Badge tone="muted">{e.stage.replace("_", " ")}</Badge>
-                </div>
+                {e.referral && (
+                  <p className="text-xs text-teal-700 dark:text-teal-300 bg-surface-alt rounded-lg px-2.5 py-1.5 mt-2">
+                    Currently with <span className="font-semibold">{e.referral.to_department}</span>
+                    {e.referral.referred_by_name && <> · referred by <span className="font-semibold">{e.referral.referred_by_name}</span></>}
+                    {e.referral.message && <>: "{e.referral.message}"</>}
+                  </p>
+                )}
               </div>
             ))}
           </div>

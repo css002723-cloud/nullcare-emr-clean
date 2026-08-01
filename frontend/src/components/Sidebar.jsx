@@ -2,10 +2,11 @@ import { NavLink } from "react-router-dom";
 import {
   LayoutDashboard, Users, ClipboardList, Stethoscope, Activity, FlaskConical,
   ScanLine, Pill, BedDouble, Droplets, Receipt, FileSearch, ShieldCheck,
-  ScrollText, LogOut, Sun, Moon, HeartPulse, X,
+  ScrollText, LogOut, Sun, Moon, X, MessageSquareText, Siren, Package,
 } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { useTheme } from "../context/ThemeContext";
+import { useUnreadMessages } from "../hooks/useUnreadMessages";
 
 const NAV_BY_ROLE = {
   admin: [
@@ -15,11 +16,13 @@ const NAV_BY_ROLE = {
     { to: "/triage", label: "Triage & Nursing", icon: Activity },
     { to: "/consultation", label: "Consultation", icon: Stethoscope },
     { to: "/laboratory", label: "Laboratory", icon: FlaskConical },
-    { to: "/imaging", label: "Imaging", icon: ScanLine },
+    // { to: "/imaging", label: "Imaging", icon: ScanLine },
     { to: "/pharmacy", label: "Pharmacy", icon: Pill },
     { to: "/wards", label: "Wards", icon: BedDouble },
+    { to: "/icu", label: "ICU & HDU", icon: Siren },
     { to: "/dialysis", label: "Dialysis", icon: Droplets },
     { to: "/billing", label: "Billing", icon: Receipt },
+    { to: "/inventory", label: "Inventory & Equipment", icon: Package },
     { to: "/research", label: "Research Export", icon: FileSearch },
     { to: "/admin/users", label: "User Management", icon: ShieldCheck },
     { to: "/admin/audit", label: "Audit Trail", icon: ScrollText },
@@ -34,24 +37,30 @@ const NAV_BY_ROLE = {
     { to: "/patients", label: "Patients", icon: Users },
     { to: "/triage", label: "Triage & Nursing", icon: Activity },
     { to: "/wards", label: "Wards", icon: BedDouble },
+    { to: "/icu", label: "ICU & HDU", icon: Siren },
+    { to: "/inventory", label: "Inventory & Equipment", icon: Package },
   ],
   doctor: [
     { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
     { to: "/patients", label: "Patients", icon: Users },
     { to: "/consultation", label: "Consultation", icon: Stethoscope },
     { to: "/wards", label: "Wards", icon: BedDouble },
+    { to: "/icu", label: "ICU & HDU", icon: Siren },
   ],
   lab_tech: [
     { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
     { to: "/laboratory", label: "Laboratory", icon: FlaskConical },
+    { to: "/inventory", label: "Inventory & Equipment", icon: Package },
   ],
   radiologist: [
     { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
     { to: "/imaging", label: "Imaging", icon: ScanLine },
+    { to: "/inventory", label: "Inventory & Equipment", icon: Package },
   ],
   pharmacist: [
     { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
     { to: "/pharmacy", label: "Pharmacy", icon: Pill },
+    { to: "/inventory", label: "Inventory & Equipment", icon: Package },
   ],
   billing: [
     { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -60,6 +69,7 @@ const NAV_BY_ROLE = {
   dialysis_tech: [
     { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
     { to: "/dialysis", label: "Dialysis", icon: Droplets },
+    { to: "/inventory", label: "Inventory & Equipment", icon: Package },
   ],
   records_officer: [
     { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
@@ -71,7 +81,14 @@ const NAV_BY_ROLE = {
 export default function Sidebar({ open, onClose }) {
   const { user, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
-  const items = NAV_BY_ROLE[user?.role] || [];
+  const { unreadCount } = useUnreadMessages();
+  const roleItems = NAV_BY_ROLE[user?.role] || [];
+
+  const items = [
+    ...roleItems.slice(0, 1),
+    { to: "/messages", label: "Messages", icon: MessageSquareText, badge: unreadCount },
+    ...roleItems.slice(1),
+  ];
 
   return (
     <>
@@ -91,13 +108,16 @@ export default function Sidebar({ open, onClose }) {
           transition-transform duration-200 ease-out
           ${open ? "translate-x-0" : "-translate-x-full md:translate-x-0"}`}
       >
+        {/* BRANDING HEADER CONTAINER */}
         <div className="px-5 py-6 border-b border-teal-500/40 flex items-center gap-2.5">
-          <div className="h-9 w-9 rounded-xl bg-white/10 flex items-center justify-center shrink-0">
-            <HeartPulse size={20} strokeWidth={2.25} className="text-teal-100" />
-          </div>
-          <div className="min-w-0 flex-1">
-            <p className="font-display text-2xl text-white leading-tight">nullcare</p>
-            <p className="text-[11px] text-teal-200 -mt-0.5">MUST Teaching Hospital EMR</p>
+          <div className="min-w-0 flex-1 space-y-1">
+            {/* REPLACED HEART ICON AND TEXT WITH IMAGE BRAND MARK */}
+            <img 
+              src="nullcare.png" 
+              alt="nullcare logo" 
+              className="h-8 w-auto object-contain brightness-0 invert" 
+            />
+            <p className="text-[11px] text-teal-200">MUST Teaching Hospital EMR</p>
           </div>
           <button
             onClick={onClose}
@@ -123,7 +143,12 @@ export default function Sidebar({ open, onClose }) {
                 }
               >
                 <Icon size={17} strokeWidth={2} className="shrink-0" />
-                {item.label}
+                <span className="flex-1">{item.label}</span>
+                {item.badge > 0 && (
+                  <span className="min-w-[1.25rem] h-5 px-1 rounded-full bg-clay text-white text-[10px] font-bold flex items-center justify-center shrink-0">
+                    {item.badge > 9 ? "9+" : item.badge}
+                  </span>
+                )}
               </NavLink>
             );
           })}
@@ -136,8 +161,8 @@ export default function Sidebar({ open, onClose }) {
             className="w-full flex items-center justify-between gap-2 rounded-lg px-3 py-2 text-sm font-medium text-teal-100 hover:bg-teal-500/50 transition-colors"
           >
             <span className="flex items-center gap-2.5">
-              {theme === "dark" ? <Moon size={17} strokeWidth={2} /> : <Sun size={17} strokeWidth={2} />}
-              {theme === "dark" ? "Dark mode" : "Light mode"}
+              { <Moon size={17} strokeWidth={2} />}
+              {"Dark mode"}
             </span>
             <span
               className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${

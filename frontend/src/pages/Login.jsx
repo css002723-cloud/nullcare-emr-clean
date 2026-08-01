@@ -1,9 +1,9 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { HeartPulse, User, Lock, ArrowRight, Sun, Moon, ShieldCheck, WifiOff, Activity } from "lucide-react";
+import { ArrowRight, Eye, EyeOff } from "lucide-react";
 import { useAuth } from "../context/AuthContext";
 import { useTheme } from "../context/ThemeContext";
-import { Button, Input, Field, Card } from "../components/ui";
+import { Button, Input } from "../components/ui";
 
 export default function Login() {
   const { login } = useAuth();
@@ -11,6 +11,7 @@ export default function Login() {
   const navigate = useNavigate();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false); // State for password visibility
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -33,59 +34,247 @@ export default function Login() {
   }
 
   return (
-    <div className="min-h-screen relative overflow-hidden bg-gradient-to-br from-teal-700 via-teal-600 to-teal-800 flex items-center justify-center px-4">
-      {/* decorative background accents */}
-      <div className="absolute -top-24 -left-24 h-96 w-96 rounded-full bg-teal-400/20 blur-3xl" />
-      <div className="absolute -bottom-32 -right-16 h-[28rem] w-[28rem] rounded-full bg-clay/10 blur-3xl" />
+   <>
+   <style>
+    {`
+    @import url("https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap");
 
-      <button
-        onClick={toggleTheme}
-        aria-label="Toggle theme"
-        className="absolute top-5 right-5 h-10 w-10 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center text-teal-100 transition-colors"
-      >
-        {theme === "dark" ? <Moon size={18} /> : <Sun size={18} />}
-      </button>
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
 
-      <div className="w-full max-w-md relative">
-        <div className="text-center mb-8">
-          <div className="mx-auto mb-4 h-14 w-14 rounded-2xl bg-white/10 backdrop-blur flex items-center justify-center">
-            <HeartPulse size={28} strokeWidth={2.25} className="text-white" />
+body {
+  font-family: "Poppins", sans-serif;
+  background: #fff;
+  min-height: 100vh;
+}
+
+.split-screen {
+  display: flex;
+  min-height: 100vh;
+  width: 100%;
+}
+
+/* Left Column Styling */
+.brand-side {
+  flex: 1.2;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 5rem;
+  background-image: linear-gradient(rgba(15, 23, 42, 0.45), rgba(15, 23, 42, 0.85)), url('nullcare.jpg');
+  background-size: cover;
+  background-position: center;
+  color: #fff;
+}
+
+.brand-side .logo {
+  font-size: 3.8rem;
+  font-weight: 700;
+  margin-bottom: 1.2rem;
+  letter-spacing: -1px;
+}
+
+.brand-side p {
+  font-size: 1.35rem;
+  font-weight: 300;
+  max-width: 480px;
+  line-height: 1.6;
+  opacity: 0.95;
+}
+
+/* Right Column Architecture */
+.form-side {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  background-color: #ffffff;
+  padding: 2.5rem;
+}
+
+/* Wrapper to hold and center everything except the footer */
+.form-container-wrapper {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+}
+
+.form-header {
+  text-align: center;
+  margin-bottom: 2.5rem;
+}
+
+.form-header .form-logo {
+  height: 54px;
+  width: auto;
+  object-fit: contain;
+  margin-bottom: 0.75rem;
+}
+
+.form-header p {
+  font-size: 0.95rem;
+  color: #64748b;
+  font-weight: 400;
+}
+
+form {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 380px;
+}
+
+form input {
+  outline: none;
+  padding: 0.85rem 1.1rem;
+  margin-bottom: 1rem;
+  font-size: 1rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 0.5rem;
+  transition: all 0.2s ease;
+  width: 100%;
+}
+
+form input:focus {
+  border-color: #1877f2;
+  box-shadow: 0 0 0 3px rgba(24, 119, 242, 0.15);
+}
+
+/* Password Input Context Container */
+.password-wrapper {
+  position: relative;
+  width: 100%;
+}
+
+/* Make space inside the input for the eye icon overlay */
+.password-wrapper input {
+  padding-right: 3rem; 
+}
+
+.password-toggle-btn {
+  position: absolute;
+  right: 1rem;
+  top: 38%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  color: #94a3b8;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.25rem;
+  border-radius: 0.25rem;
+  transition: color 0.2s ease;
+}
+
+.password-toggle-btn:hover {
+  color: #64748b;
+}
+
+/* Unique Identity Footer */
+.form-side-footer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid #f1f5f9;
+  color: #94a3b8;
+  font-size: 0.85rem;
+}
+
+.form-side-footer .footer-logo {
+  height: 18px;
+  width: auto;
+  object-fit: contain;
+  opacity: 0.8;
+}
+
+/* Mobile Screens */
+@media (max-width: 768px) {
+  .split-screen {
+    flex-direction: column;
+  }
+  
+  .brand-side {
+    flex: none;
+    min-height: 35vh;
+    padding: 3rem 2rem;
+    align-items: center;
+    text-align: center;
+  }
+  
+  .brand-side .logo { font-size: 2.8rem; }
+  .brand-side p { font-size: 1.1rem; }
+
+  .form-side {
+    flex: 1;
+    padding: 3rem 1.5rem 1.5rem 1.5rem;
+  }
+  
+  .form-container-wrapper {
+    justify-content: flex-start;
+    padding-top: 1rem;
+  }
+}
+    `}
+   </style>
+
+    <div className="split-screen">
+      {/* Left Column */}
+      <div className="brand-side">
+        <h1 className="logo">Welcome</h1>
+        <p>Use your credentials to securely access your clinical health system records.</p>
+      </div>
+
+      {/* Right Column */}
+      <div className="form-side">
+        
+        {/* Centered Main Form Area */}
+        <div className="form-container-wrapper">
+          <div className="form-header">
+            <img src="nullcare.png" alt="NullCare Platform Logo" className="form-logo" />
+            <p>Welcome back! Please enter your details.</p>
           </div>
-          <p className="font-display text-4xl text-white tracking-tight">nullcare</p>
-          <p className="text-teal-200 text-sm mt-1">Electronic Medical Record — MUST Teaching Hospital</p>
-        </div>
 
-        <Card className="shadow-2xl border-white/10 backdrop-blur">
-          <form onSubmit={handleSubmit} className="space-y-4" aria-label="Sign in">
-            <Field label="Username" required>
-              <div className="relative">
-                <User size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink/35 pointer-events-none" />
-                <Input
-                  autoFocus
-                  autoComplete="username"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  placeholder="e.g. doctor1"
-                  className="pl-9"
-                />
-              </div>
-            </Field>
-            <Field label="Password" required>
-              <div className="relative">
-                <Lock size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-ink/35 pointer-events-none" />
-                <Input
-                  type="password"
-                  autoComplete="current-password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="••••••••"
-                  className="pl-9"
-                />
-              </div>
-            </Field>
+          <form onSubmit={handleSubmit}>
+            <Input
+              autoFocus
+              autoComplete="username"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              placeholder="Enter username" 
+            />
+            
+            {/* Password Wrapper for Positioning Toggle Button */}
+            <div className="password-wrapper">
+              <Input
+                type={showPassword ? "text" : "password"}
+                autoComplete="current-password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="••••••••" 
+                required 
+              />
+              <button
+                type="button"
+                className="password-toggle-btn"
+                onClick={() => setShowPassword(!showPassword)}
+                aria-label={showPassword ? "Hide password" : "Show password"}
+              >
+                {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+              </button>
+            </div>
 
             {error && (
-              <p role="alert" className="text-sm text-alert bg-alert/5 border border-alert/20 rounded-lg px-3 py-2">
+              <p role="alert" className="text-sm text-alert bg-alert/5 border border-alert/20 rounded-lg px-3 py-2 mb-4">
                 {error}
               </p>
             )}
@@ -94,19 +283,16 @@ export default function Login() {
               {loading ? "Signing in…" : "Sign in"}
             </Button>
           </form>
-        </Card>
-
-        <div className="flex items-center justify-center gap-4 mt-5 text-teal-200/80 text-xs">
-          <span className="flex items-center gap-1.5"><ShieldCheck size={13} /> Role-based access</span>
-          <span className="flex items-center gap-1.5"><WifiOff size={13} /> Works offline</span>
-          <span className="flex items-center gap-1.5"><Activity size={13} /> Real-time queues</span>
         </div>
 
-        <p className="text-center text-xs text-teal-200/70 mt-4 leading-relaxed">
-          Demo accounts (password <span className="mrn-mono">nullcare123</span>): admin, reception1, nurse1,
-          doctor1, labtech1, radiologist1, pharmacist1, billing1, dialysis1, records1
-        </p>
+        {/* Bottom Docked Footer */}
+        <footer className="form-side-footer">
+          <span>Powered by</span>
+          <img src="emr.png" alt="EMR Core System" className="footer-logo" />
+        </footer>
+
       </div>
     </div>
+  </>
   );
 }

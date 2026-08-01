@@ -1,8 +1,9 @@
 import { useEffect, useState, useCallback } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, Link } from "react-router-dom";
 import api from "../services/api";
 import { Card, Badge, Button, Field, Input, Select, Textarea, LoadingRow, priorityTone } from "../components/ui";
 import PatientRibbon from "../components/PatientRibbon";
+import ClinicalNoteForm from "../components/ClinicalNoteForm";
 import { useAuth } from "../context/AuthContext";
 import { createWithOfflineFallback } from "../offline/offlineResource";
 
@@ -65,10 +66,11 @@ export default function EncounterWorkspace() {
       />
       {msg && <p className="text-sm text-moss bg-moss/10 border border-moss/20 rounded-lg px-3 py-2">{msg}</p>}
 
-      <div className="grid md:grid-cols-2 gap-5">
-        {hasRole("nurse", "doctor") && <VitalsPanel encounterId={id} vitals={vitals} onSaved={() => { load(); flash("Vitals recorded"); }} />}
-        <ClinicalNotePanel encounterId={id} notes={notes} canWrite={hasRole("doctor", "nurse")} onSaved={() => { load(); flash("Note saved"); }} />
-      </div>
+      {hasRole("nurse", "doctor") && (
+        <VitalsPanel encounterId={id} vitals={vitals} onSaved={() => { load(); flash("Vitals recorded"); }} />
+      )}
+
+      <ClinicalNoteForm encounterId={id} notes={notes} canWrite={hasRole("doctor", "nurse")} onSaved={() => { load(); flash("Note saved"); }} />
 
       <div className="grid md:grid-cols-2 gap-5">
         {hasRole("doctor") && <OrdersPanel encounterId={id} orders={orders} onSaved={() => { load(); flash("Order placed"); }} />}
@@ -135,54 +137,6 @@ function VitalsPanel({ encounterId, vitals, onSaved }) {
   );
 }
 
-function ClinicalNotePanel({ encounterId, notes, canWrite, onSaved }) {
-  const [form, setForm] = useState({ note_type: "progress", diagnosis: "", plan: "", body: "" });
-  const [saving, setSaving] = useState(false);
-
-  async function submit(e) {
-    e.preventDefault();
-    setSaving(true);
-    try {
-      await createWithOfflineFallback("note", `/encounters/${encounterId}/notes`, form);
-      setForm({ note_type: "progress", diagnosis: "", plan: "", body: "" });
-      onSaved();
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  return (
-    <Card>
-      <p className="font-display text-lg mb-3">Clinical documentation</p>
-      <div className="max-h-48 overflow-y-auto space-y-2 mb-3">
-        {notes.length === 0 && <p className="text-sm text-ink/40">No notes yet.</p>}
-        {notes.map((n) => (
-          <div key={n.id} className="text-sm border border-line rounded-lg p-2">
-            <p className="font-semibold capitalize">{n.note_type?.replace("_", " ")}</p>
-            {n.diagnosis && <p className="text-xs">Dx: {n.diagnosis}</p>}
-            {n.plan && <p className="text-xs">Plan: {n.plan}</p>}
-            {n.body && <p className="text-xs">{n.body}</p>}
-          </div>
-        ))}
-      </div>
-      {canWrite && (
-        <form onSubmit={submit} className="space-y-2">
-          <Select value={form.note_type} onChange={(e) => setForm({ ...form, note_type: e.target.value })}>
-            <option value="history_physical">History & Physical</option>
-            <option value="progress">Progress note</option>
-            <option value="nursing">Nursing note</option>
-            <option value="consult">Consultation note</option>
-            <option value="discharge_summary">Discharge summary</option>
-          </Select>
-          <Field label="Diagnosis"><Input value={form.diagnosis} onChange={(e) => setForm({ ...form, diagnosis: e.target.value })} /></Field>
-          <Field label="Plan"><Textarea value={form.plan} onChange={(e) => setForm({ ...form, plan: e.target.value })} /></Field>
-          <Field label="Notes"><Textarea value={form.body} onChange={(e) => setForm({ ...form, body: e.target.value })} /></Field>
-          <Button type="submit" disabled={saving}>{saving ? "Saving…" : "Save note"}</Button>
-        </form>
-      )}
-    </Card>
-  );
-}
 
 function OrdersPanel({ encounterId, orders, onSaved }) {
   const [form, setForm] = useState({ order_type: "lab", details: "", target_department: "laboratory", priority: "routine" });
@@ -310,13 +264,14 @@ function PrescribePanel({ encounterId, onSaved }) {
   );
 }
 
-const WARDS = ["Male General", "Female General", "Pediatric", "Maternity", "ICU/HDU", "Surgical", "Isolation"];
+const WARDS = ["Male General", "Female General", "Pediatric", "Maternity", "Surgical", "Isolation"];
 
 function DispositionPanel({ encounterId, onSaved, onClosed }) {
   const [outcome, setOutcome] = useState("discharged");
   const [notes, setNotes] = useState("");
   const [ward, setWard] = useState(WARDS[0]);
   const [bed, setBed] = useState("");
+  const [admissionDiagnosis, setAdmissionDiagnosis] = useState("");
   const [saving, setSaving] = useState(false);
   const [confirmDeath, setConfirmDeath] = useState(false);
 
@@ -326,7 +281,7 @@ function DispositionPanel({ encounterId, onSaved, onClosed }) {
     setSaving(true);
     try {
       if (outcome === "admitted") {
-        await api.post("/wards/admit", { encounter_id: Number(encounterId), ward, bed });
+        await api.post("/wards/admit", { encounter_id: Number(encounterId), ward, bed, admission_diagnosis: admissionDiagnosis });
       }
       await api.post(`/encounters/${encounterId}/close`, { outcome, disposition_notes: notes });
       onSaved();
@@ -347,11 +302,17 @@ function DispositionPanel({ encounterId, onSaved, onClosed }) {
           <option value="died">Death documentation</option>
         </Select>
         {outcome === "admitted" && (
-          <div className="grid grid-cols-2 gap-3">
-            <Select value={ward} onChange={(e) => setWard(e.target.value)}>
-              {WARDS.map((w) => <option key={w} value={w}>{w}</option>)}
-            </Select>
-            <Input placeholder="Bed number" value={bed} onChange={(e) => setBed(e.target.value)} />
+          <div className="space-y-3">
+            <div className="grid grid-cols-2 gap-3">
+              <Select value={ward} onChange={(e) => setWard(e.target.value)}>
+                {WARDS.map((w) => <option key={w} value={w}>{w}</option>)}
+              </Select>
+              <Input placeholder="Bed number" value={bed} onChange={(e) => setBed(e.target.value)} />
+            </div>
+            <Textarea placeholder="Admission diagnosis" value={admissionDiagnosis} onChange={(e) => setAdmissionDiagnosis(e.target.value)} />
+            <p className="text-xs text-ink/45">
+              Needs critical care instead? Admit to ICU/HDU from the <Link to="/icu" className="text-teal-600 dark:text-teal-300 underline">ICU module</Link> for ventilation, sedation, and sepsis tracking.
+            </p>
           </div>
         )}
         <Textarea placeholder="Disposition notes" value={notes} onChange={(e) => setNotes(e.target.value)} />

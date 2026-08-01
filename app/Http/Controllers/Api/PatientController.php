@@ -3,129 +3,71 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Resources\AllergyResource;
 use App\Http\Resources\EncounterResource;
 use App\Http\Resources\PatientResource;
+use App\Models\Encounter;
 use App\Models\Patient;
-use App\Services\PatientDuplicateService;
+use App\Services\AuditLogger;
+use App\Services\IdGenerator;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Validator;
 
 class PatientController extends Controller
 {
-    public function __construct(private PatientDuplicateService $duplicates) {}
-
     /**
-     * GET /api/patients?q=&status=not_completed|completed
+     * GET /api/patients?q=&status=active|completed|all
+     * Ported from list_patients() in patients.py, including the
+     * active/completed/all semantics: "active" = has an open visit right
+     * now OR has never had a visit at all; "completed" = has at least one
+     * visit and none currently open.
      */
     public function index(Request $request)
     {
-        $q = $request->query('q');
-        $status = $request->query('status');
+        $q = trim((string) $request->query('q', ''));
+        $status = $request->query('status', 'active');
 
-        $patients = Patient::query()
-            ->whereNull('is_duplicate_of')
-            ->when($status, fn ($query) => $query->where('completion_status', $status))
-            ->when($q, function ($query) use ($q) {
-                $query->where(function ($sub) use ($q) {
-                    $sub->where('patient_number', 'like', "%{$q}%")
-                        ->orWhere('national_id', 'like', "%{$q}%")
-                        ->orWhere('phone', 'like', "%{$q}%")
-                        ->orWhereRaw("CONCAT(first_name, ' ', last_name) LIKE ?", ["%{$q}%"]);
-                });
-            })
-            ->orderByDesc('created_at')
-            ->get();
+        $query = Patient::whereNull('merged_into_patient_id');
 
-        return PatientResource::collection($patients);
-    }
-
-    /**
-     * POST /api/patients/check-duplicate
-     * Body: { given_name, family_name, national_id }
-     * Returns a plain array (not paginated) — Reception.jsx renders it directly.
-     */
-    public function checkDuplicate(Request $request)
-    {
-        $matches = $this->duplicates->findPossibleMatches([
-            'first_name' => $request->input('given_name'),
-            'last_name' => $request->input('family_name'),
-            'national_id' => $request->input('national_id'),
-        ]);
-
-        return PatientResource::collection($matches);
-    }
-
-    /**
-     * POST /api/patients
-     * Registers a new patient. Idempotent on client_uuid: if the same
-     * client_uuid is submitted twice (offline retry / sync replay), the
-     * existing record is returned rather than creating a duplicate.
-     */
-    public function store(Request $request)
-    {
-        $validator = Validator::make($request->all(), [
-            'given_name' => ['required', 'string', 'max:100'],
-            'family_name' => ['required', 'string', 'max:100'],
-            'sex' => ['nullable', 'in:male,female,other'],
-            'date_of_birth' => ['nullable', 'date', 'before_or_equal:today'],
-            'estimated_age' => ['nullable', 'integer', 'min:0', 'max:150'],
-            'national_id' => ['nullable', 'string', 'max:30'],
-            'phone' => ['nullable', 'string', 'max:20'],
-            'village' => ['nullable', 'string', 'max:100'],
-            'traditional_authority' => ['nullable', 'string', 'max:100'],
-            'district' => ['nullable', 'string', 'max:100'],
-            'region' => ['nullable', 'string', 'max:50'],
-            'occupation' => ['nullable', 'string', 'max:100'],
-            'guardian_name' => ['nullable', 'string', 'max:150'],
-            'guardian_relationship' => ['nullable', 'string', 'max:50'],
-            'guardian_phone' => ['nullable', 'string', 'max:20'],
-            'patient_category' => ['required', 'in:outpatient,inpatient,student,staff,private,emergency,research,referred'],
-            'client_uuid' => ['nullable', 'string', 'max:36'],
-        ]);
-
-        if ($validator->fails()) {
-            return response()->json(['message' => 'Validation failed.', 'errors' => $validator->errors()], 422);
+        if ($q) {
+            $like = "%{$q}%";
+            $query->where(function ($sub) use ($like) {
+                $sub->where('given_name', 'like', $like)
+                    ->orWhere('family_name', 'like', $like)
+                    ->orWhere('patient_uid', 'like', $like)
+                    ->orWhere('national_id', 'like', $like)
+                    ->orWhere('phone', 'like', $like);
+            });
         }
 
-        $data = $validator->validated();
+        if (in_array($status, ['active', 'completed'], true)) {
+            $activeIds = Encounter::whereNotIn('stage', Encounter::CLOSED_STAGES)->distinct()->pluck('patient_id');
+            $anyEncounterIds = Encounter::distinct()->pluck('patient_id');
 
-        // Idempotency: a retried/replayed offline write with the same
-        // client_uuid returns the existing record instead of duplicating.
-        if (! empty($data['client_uuid'])) {
-            $existing = Patient::where('client_uuid', $data['client_uuid'])->first();
-            if ($existing) {
-                return new PatientResource($existing);
+            if ($status === 'active') {
+                $query->where(function ($sub) use ($activeIds, $anyEncounterIds) {
+                    $sub->whereIn('id', $activeIds)->orWhereNotIn('id', $anyEncounterIds);
+                });
+            } else {
+                $query->whereIn('id', $anyEncounterIds)->whereNotIn('id', $activeIds);
             }
         }
 
-        $patient = DB::transaction(function () use ($data, $request) {
-            return Patient::create([
-                'client_uuid' => $data['client_uuid'] ?? null,
-                'patient_number' => $this->generatePatientNumber(),
-                'national_id' => $data['national_id'] ?? null,
-                'first_name' => $data['given_name'],
-                'last_name' => $data['family_name'],
-                'gender' => $data['sex'] ?? null,
-                'date_of_birth' => $data['date_of_birth'] ?? null,
-                'age_estimate' => $data['estimated_age'] ?? null,
-                'phone' => $data['phone'] ?? null,
-                'village' => $data['village'] ?? null,
-                'traditional_authority' => $data['traditional_authority'] ?? null,
-                'district' => $data['district'] ?? null,
-                'region' => $data['region'] ?? null,
-                'occupation' => $data['occupation'] ?? null,
-                'guardian_name' => $data['guardian_name'] ?? null,
-                'guardian_relationship' => $data['guardian_relationship'] ?? null,
-                'guardian_phone' => $data['guardian_phone'] ?? null,
-                'patient_category' => $data['patient_category'],
-                'consent_care' => true,
-                'completion_status' => 'not_completed',
-                'registered_by' => $request->user()->id,
-            ]);
+        $patients = $query->orderByDesc('created_at')->limit(100)->get();
+
+        $result = $patients->map(function (Patient $p) {
+            $latest = Encounter::where('patient_id', $p->id)->latest()->first();
+            $d = (new PatientResource($p))->toArray(request());
+            $d['latest_encounter_at'] = $latest?->created_at?->toIso8601String();
+            $d['latest_encounter_number'] = $latest?->encounter_number;
+            $d['latest_mrn'] = $latest?->mrn;
+            $d['latest_encounter_stage'] = $latest?->stage;
+            $d['has_active_encounter'] = $latest && ! in_array($latest->stage, Encounter::CLOSED_STAGES, true);
+
+            return $d;
         });
 
-        return response()->json(new PatientResource($patient), 201);
+        return response()->json($result);
     }
 
     /**
@@ -133,9 +75,200 @@ class PatientController extends Controller
      */
     public function show(Patient $patient)
     {
-        $patient->load('allergies');
+        $result = (new PatientResource($patient))->toArray(request());
+        $result['allergies'] = AllergyResource::collection($patient->allergies)->toArray(request());
+        $result['is_pediatric'] = $patient->isPediatric();
+
+        return response()->json($result);
+    }
+
+    /**
+     * GET /api/patients/by-uid/{uid}
+     * The permanent cross-visit identifier lookup — how the frontend
+     * resolves "this returning patient" without touching a visit-specific MRN.
+     */
+    public function showByUid(string $uid)
+    {
+        $patient = Patient::where('patient_uid', strtoupper(trim($uid)))->first();
+
+        if (! $patient) {
+            return response()->json(['error' => 'not_found', 'message' => "No patient found with ID {$uid}"], 404);
+        }
+
+        $result = (new PatientResource($patient))->toArray(request());
+        $result['allergies'] = AllergyResource::collection($patient->allergies)->toArray(request());
+        $result['is_pediatric'] = $patient->isPediatric();
+
+        return response()->json($result);
+    }
+
+    /**
+     * POST /api/patients/check-duplicate
+     * Matches on national_id OR (given_name AND family_name), exactly as
+     * the reference does — not a staged DoB-first algorithm (that was my
+     * own earlier design before this merge; the reference's simpler
+     * approach is now the source of truth).
+     */
+    public function checkDuplicate(Request $request)
+    {
+        $matches = collect();
+
+        if ($request->filled('national_id')) {
+            $matches = $matches->merge(
+                Patient::whereNull('merged_into_patient_id')->where('national_id', $request->input('national_id'))->get()
+            );
+        }
+
+        if ($request->filled('given_name') && $request->filled('family_name')) {
+            $nameMatches = Patient::whereNull('merged_into_patient_id')
+                ->where('given_name', 'like', $request->input('given_name'))
+                ->where('family_name', 'like', $request->input('family_name'))
+                ->get();
+
+            $matches = $matches->merge($nameMatches)->unique('id');
+        }
+
+        return PatientResource::collection($matches->take(10));
+    }
+
+    /**
+     * POST /api/patients
+     * Roles: reception, nurse, admin
+     */
+    public function store(Request $request)
+    {
+        if (! $request->filled('given_name') || ! $request->filled('family_name')) {
+            return response()->json(['error' => 'missing_fields', 'message' => 'Missing: given_name, family_name'], 400);
+        }
+
+        $dob = null;
+        if ($request->filled('date_of_birth')) {
+            try {
+                $dob = \Carbon\Carbon::createFromFormat('Y-m-d', $request->input('date_of_birth'))->toDateString();
+            } catch (\Exception $e) {
+                return response()->json(['error' => 'invalid_date', 'message' => 'date_of_birth must be YYYY-MM-DD'], 400);
+            }
+        }
+
+        do {
+            $patientUid = IdGenerator::patientUid();
+        } while (Patient::where('patient_uid', $patientUid)->exists());
+
+        $user = $request->user();
+
+        $patient = DB::transaction(function () use ($request, $dob, $patientUid, $user) {
+            $patient = Patient::create([
+                'patient_uid' => $patientUid,
+                'national_id' => $request->input('national_id'),
+                'given_name' => trim($request->input('given_name')),
+                'family_name' => trim($request->input('family_name')),
+                'sex' => $request->input('sex'),
+                'date_of_birth' => $dob,
+                'estimated_age' => $request->input('estimated_age'),
+                'phone' => $request->input('phone'),
+                'village' => $request->input('village'),
+                'traditional_authority' => $request->input('traditional_authority'),
+                'district' => $request->input('district'),
+                'region' => $request->input('region'),
+                'occupation' => $request->input('occupation'),
+                'guardian_name' => $request->input('guardian_name'),
+                'guardian_relationship' => $request->input('guardian_relationship'),
+                'guardian_phone' => $request->input('guardian_phone'),
+                'patient_category' => $request->input('patient_category', 'outpatient'),
+                'consent_care' => $request->input('consent_care', true),
+                'consent_research' => $request->input('consent_research', false),
+                'consent_teaching' => $request->input('consent_teaching', false),
+                'registered_by' => $user->id,
+                'client_uuid' => $request->input('client_uuid'),
+            ]);
+
+            foreach ($request->input('allergies', []) as $allergy) {
+                $patient->allergies()->create([
+                    'substance' => $allergy['substance'] ?? null,
+                    'reaction' => $allergy['reaction'] ?? null,
+                    'severity' => $allergy['severity'] ?? null,
+                    'recorded_by' => $user->id,
+                ]);
+            }
+
+            return $patient;
+        });
+
+        AuditLogger::log($user, 'register_patient', 'patient', $patient->id, "uid={$patientUid}");
+
+        return response()->json(new PatientResource($patient), 201);
+    }
+
+    /**
+     * PUT /api/patients/{patient}
+     * Roles: reception, nurse, doctor, admin
+     */
+    public function update(Request $request, Patient $patient)
+    {
+        $editable = [
+            'phone', 'village', 'traditional_authority', 'district', 'region', 'occupation',
+            'guardian_name', 'guardian_relationship', 'guardian_phone', 'patient_category',
+            'consent_care', 'consent_research', 'consent_teaching',
+        ];
+
+        foreach ($editable as $field) {
+            if ($request->has($field)) {
+                $patient->{$field} = $request->input($field);
+            }
+        }
+
+        $patient->save();
+
+        AuditLogger::log($request->user(), 'update_patient', 'patient', $patient->id);
 
         return new PatientResource($patient);
+    }
+
+    /**
+     * POST /api/patients/{patient}/allergies
+     * Roles: nurse, doctor, pharmacist, admin
+     */
+    public function storeAllergy(Request $request, Patient $patient)
+    {
+        if (! $request->filled('substance')) {
+            return response()->json(['error' => 'missing_fields', 'message' => 'substance is required'], 400);
+        }
+
+        $allergy = $patient->allergies()->create([
+            'substance' => $request->input('substance'),
+            'reaction' => $request->input('reaction'),
+            'severity' => $request->input('severity'),
+            'recorded_by' => $request->user()->id,
+        ]);
+
+        AuditLogger::log($request->user(), 'add_allergy', 'patient', $patient->id, $request->input('substance'));
+
+        return response()->json(new AllergyResource($allergy), 201);
+    }
+
+    /**
+     * POST /api/patients/merge
+     * Roles: records_officer, admin
+     * Body: { keep_patient_id, duplicate_patient_id }
+     */
+    public function merge(Request $request)
+    {
+        $keepId = $request->input('keep_patient_id');
+        $mergeId = $request->input('duplicate_patient_id');
+
+        if (! $keepId || ! $mergeId || $keepId == $mergeId) {
+            return response()->json(['error' => 'invalid_request'], 400);
+        }
+
+        $duplicate = Patient::findOrFail($mergeId);
+        Patient::findOrFail($keepId);
+
+        $duplicate->update(['merged_into_patient_id' => $keepId]);
+        Encounter::where('patient_id', $mergeId)->update(['patient_id' => $keepId]);
+
+        AuditLogger::log($request->user(), 'merge_patients', 'patient', $keepId, "merged {$mergeId} into {$keepId}");
+
+        return response()->json(['message' => 'Patients merged']);
     }
 
     /**
@@ -143,42 +276,53 @@ class PatientController extends Controller
      */
     public function history(Patient $patient)
     {
-        $encounters = $patient->encounters()->latest()->get();
+        $encounters = Encounter::where('patient_id', $patient->id)->latest()->get();
 
-        return EncounterResource::collection($encounters);
+        $result = $encounters->map(function (Encounter $e) {
+            $d = (new EncounterResource($e))->toArray(request());
+            $d['referral'] = in_array($e->stage, Encounter::CLOSED_STAGES, true) ? null : $e->activeReferral()?->toArray();
+
+            return $d;
+        });
+
+        return response()->json($result);
     }
-
     /**
-     * POST /api/patients/{patient}/allergies
-     * Body: { substance, reaction, severity }
+     * GET /api/patients/{patient}/export
+     * Full, printable PDF of everything the system holds on this patient.
+     * Requires: composer require barryvdh/laravel-dompdf
      */
-    public function storeAllergy(Request $request, Patient $patient)
+    public function exportPdf(Request $request, Patient $patient)
     {
-        $validated = $request->validate([
-            'substance' => ['required', 'string', 'max:150'],
-            'reaction' => ['nullable', 'string', 'max:255'],
-            'severity' => ['required', 'in:mild,moderate,severe'],
+        $patient->load('allergies');
+        $encounters = Encounter::where('patient_id', $patient->id)
+            ->with([
+                'vitals', 'clinicalNotes', 'clinicalOrders',
+                'labOrders.result', 'imagingOrders.report',
+                'prescriptions.administrations', 'referrals.referredBy', 'invoices',
+            ])
+            ->latest()
+            ->get();
+
+        $age = null;
+        if ($patient->date_of_birth) {
+            $age = $patient->date_of_birth->age;
+        } elseif ($patient->estimated_age !== null) {
+            $age = $patient->estimated_age;
+        }
+
+        $pdf = \Barryvdh\DomPDF\Facade\Pdf::loadView('pdf.patient-record', [
+            'patient' => $patient,
+            'allergies' => $patient->allergies,
+            'encounters' => $encounters,
+            'age' => $age,
+            'generatedAt' => now()->format('Y-m-d H:i \U\T\C'),
+            'generatedByName' => $request->user()->full_name,
         ]);
 
-        $allergy = $patient->allergies()->create([
-            'allergen' => $validated['substance'],
-            'reaction' => $validated['reaction'] ?? null,
-            'severity' => $validated['severity'],
-            'recorded_by' => $request->user()->id,
-        ]);
+        AuditLogger::log($request->user(), 'export_patient_record', 'patient', $patient->id);
 
-        return response()->json($allergy, 201);
+        return $pdf->download("nullcare-{$patient->patient_uid}-full-record.pdf");
     }
 
-    private function generatePatientNumber(): string
-    {
-        $year = now()->format('Y');
-
-        do {
-            $sequence = str_pad((string) random_int(1, 999999), 6, '0', STR_PAD_LEFT);
-            $candidate = "NC-{$year}-{$sequence}";
-        } while (Patient::where('patient_number', $candidate)->exists());
-
-        return $candidate;
-    }
 }

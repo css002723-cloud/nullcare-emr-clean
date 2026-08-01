@@ -19,10 +19,8 @@ export function AuthProvider({ children }) {
     api
       .get("/auth/me")
       .then((res) => {
-        // Extract user data from response
-        const userData = res.data.user || res.data;
-        setUser(userData);
-        localStorage.setItem("nullcare_user", JSON.stringify(userData));
+        setUser(res.data);
+        localStorage.setItem("nullcare_user", JSON.stringify(res.data));
       })
       .catch(() => {
         // offline or token invalid — keep cached user if we have one so the app
@@ -37,30 +35,24 @@ export function AuthProvider({ children }) {
   }, []);
 
   const login = useCallback(async (username, password) => {
-    const res = await api.post("/login", { 
-      email: username,  // Send as email field
-      password 
-    });
-    
-    // Extract user data from nested structure
-    const userData = res.data.user;
-    const token = res.data.access_token;
-    
-    localStorage.setItem("nullcare_token", token);
-    localStorage.setItem("nullcare_user", JSON.stringify(userData));
-    setUser(userData);
-    return userData;
+    const res = await api.post("/auth/login", { username, password });
+    localStorage.setItem("nullcare_token", res.data.access_token);
+    localStorage.setItem("nullcare_user", JSON.stringify(res.data.user));
+    setUser(res.data.user);
+    return res.data.user;
   }, []);
 
-  const logout = useCallback(async () => {
-    try {
-      await api.post("/logout");
-    } catch (err) {
-      console.error("Logout error:", err);
-    }
+  const logout = useCallback(() => {
     localStorage.removeItem("nullcare_token");
     localStorage.removeItem("nullcare_user");
     setUser(null);
+  }, []);
+
+  const refreshUser = useCallback(async () => {
+    const res = await api.get("/auth/me");
+    setUser(res.data);
+    localStorage.setItem("nullcare_user", JSON.stringify(res.data));
+    return res.data;
   }, []);
 
   const hasRole = useCallback(
@@ -73,7 +65,7 @@ export function AuthProvider({ children }) {
   );
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout, hasRole }}>
+    <AuthContext.Provider value={{ user, loading, login, logout, hasRole, refreshUser }}>
       {children}
     </AuthContext.Provider>
   );
