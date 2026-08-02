@@ -25,6 +25,8 @@ import AdminUsers from "./pages/AdminUsers";
 import AdminAudit from "./pages/AdminAudit";
 import Messages from "./pages/Messages";
 import Inventory from "./pages/Inventory";
+import Settings from "./pages/Settings";
+import Appointments from "./pages/appointments";
 
 export default function App() {
   return (
@@ -40,6 +42,8 @@ export default function App() {
           <Route path="/patients" element={<ProtectedRoute><Patients /></ProtectedRoute>} />
           <Route path="/patients/:uid" element={<ProtectedRoute><PatientDetail /></ProtectedRoute>} />
           <Route path="/messages" element={<ProtectedRoute><Messages /></ProtectedRoute>} />
+          <Route path="/settings" element={ <ProtectedRoute><Settings /></ProtectedRoute> }/>
+          <Route path="/appointments" element={<ProtectedRoute roles={["reception", "nurse", "doctor", "admin"]}><Appointments /></ProtectedRoute>} />
 
           <Route path="/reception" element={<ProtectedRoute roles={["reception", "nurse"]}><Reception /></ProtectedRoute>} />
           <Route path="/triage" element={<ProtectedRoute roles={["nurse", "doctor"]}><Triage /></ProtectedRoute>} />
@@ -56,7 +60,7 @@ export default function App() {
           <Route path="/dialysis" element={<ProtectedRoute roles={["dialysis_tech", "doctor", "nurse"]}><Dialysis /></ProtectedRoute>} />
           <Route path="/billing" element={<ProtectedRoute roles={["billing"]}><Billing /></ProtectedRoute>} />
           <Route path="/inventory" element={<ProtectedRoute roles={["pharmacist", "lab_tech", "radiologist", "nurse", "dialysis_tech"]}><Inventory /></ProtectedRoute>} />
-          <Route path="/research" element={<ProtectedRoute roles={["records_officer"]}><Research /></ProtectedRoute>} />
+          <Route path="/research" element={<ProtectedRoute roles={["records_officer", "admin"]}><Research /></ProtectedRoute>} />
 
           <Route path="/admin/users" element={<ProtectedRoute roles={["admin"]}><AdminUsers /></ProtectedRoute>} />
           <Route path="/admin/audit" element={<ProtectedRoute roles={["admin"]}><AdminAudit /></ProtectedRoute>} />

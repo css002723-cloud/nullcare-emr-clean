@@ -1,16 +1,21 @@
 import axios from "axios";
 
+// Create Axios instance with base configuration
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || "/api",
   timeout: 8000,
 });
 
+// Request Interceptor: Attach Bearer Token from localStorage
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem("nullcare_token");
-  if (token) config.headers.Authorization = `Bearer ${token}`;
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
   return config;
 });
 
+// Response Interceptor: Handle 401 Unauthorized globally
 api.interceptors.response.use(
   (res) => res,
   (err) => {
