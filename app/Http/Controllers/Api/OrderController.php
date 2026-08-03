@@ -4,9 +4,12 @@ namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
 use App\Models\Encounter;
+use App\Models\LabOrder;
 use App\Models\Order;
 use App\Services\AuditLogger;
+use App\Services\IdGenerator;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 class OrderController extends Controller
 {
@@ -30,10 +33,6 @@ class OrderController extends Controller
         return response()->json($query->latest()->get());
     }
 
-    /**
-     * POST /api/orders
-     * Roles: doctor, nurse, admin
-     */
     public function store(Request $request)
     {
         if (! $request->filled('encounter_id')) {
@@ -41,17 +40,39 @@ class OrderController extends Controller
         }
 
         $encounter = Encounter::findOrFail($request->input('encounter_id'));
+        $orderType = $request->input('order_type', 'procedure');
 
-        $order = Order::create([
-            'encounter_id' => $encounter->id,
-            'patient_id' => $encounter->patient_id,
-            'order_type' => $request->input('order_type', 'procedure'),
-            'details' => $request->input('details'),
-            'priority' => $request->input('priority', 'routine'),
-            'target_department' => $request->input('target_department'),
-            'ordered_by' => $request->user()->id,
-            'client_uuid' => $request->input('client_uuid'),
-        ]);
+        $order = DB::transaction(function () use ($request, $encounter, $orderType) {
+            $order = Order::create([
+                'encounter_id' => $encounter->id,
+                'patient_id' => $encounter->patient_id,
+                'order_type' => $orderType,
+                'details' => $request->input('details'),
+                'priority' => $request->input('priority', 'routine'),
+                'target_department' => $request->input('target_department'),
+                'ordered_by' => $request->user()->id,
+                'client_uuid' => $request->input('client_uuid'),
+            ]);
+
+            if ($orderType === 'lab' && $request->filled('details')) {
+                $testCode = strtoupper(trim($request->input('details')));
+                $loinc = LabOrder::CATALOG[$testCode] ?? [];
+
+                LabOrder::create([
+                    'order_id' => $order->id,
+                    'encounter_id' => $encounter->id,
+                    'patient_id' => $encounter->patient_id,
+                    'test_code' => $testCode,
+                    'loinc_code' => $loinc['loinc_code'] ?? null,
+                    'loinc_display' => $loinc['loinc_display'] ?? null,
+                    'barcode' => IdGenerator::barcode(),
+                    'priority' => $request->input('priority', 'routine'),
+                    'ordered_by' => $request->user()->id,
+                ]);
+            }
+
+            return $order;
+        });
 
         AuditLogger::log(
             $request->user(), 'create_order', 'encounter', $encounter->id,
