@@ -2,7 +2,12 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import { VitePWA } from "vite-plugin-pwa";
 
-export default defineConfig({
+export default defineConfig(({ command }) => ({
+  base: command === "build" ? "/app/" : "/",
+  build: {
+    outDir: "../public/app",
+    emptyOutDir: true,
+  },
   plugins: [
     react(),
     VitePWA({
@@ -10,7 +15,7 @@ export default defineConfig({
       injectRegister: "auto",
       workbox: {
         globPatterns: ["**/*.{js,css,html,ico,png,svg,woff2}"],
-        navigateFallback: "/index.html",
+        navigateFallback: "/app/index.html",
         runtimeCaching: [
           {
             urlPattern: ({ url }) => url.pathname.startsWith("/api/"),
@@ -30,10 +35,10 @@ export default defineConfig({
         theme_color: "#0F4C4A",
         background_color: "#F7F5F0",
         display: "standalone",
-        start_url: "/",
+        start_url: "/app/",
         icons: [
-          { src: "/icon-192.png", sizes: "192x192", type: "image/png" },
-          { src: "/icon-512.png", sizes: "512x512", type: "image/png" },
+          { src: "/app/icon-192.png", sizes: "192x192", type: "image/png" },
+          { src: "/app/icon-512.png", sizes: "512x512", type: "image/png" },
         ],
       },
     }),
@@ -48,4 +53,4 @@ export default defineConfig({
       },
     },
   },
-});
+}));

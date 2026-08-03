@@ -9,9 +9,35 @@ use App\Models\Invoice;
 use App\Models\LabOrder;
 use App\Models\LabResult;
 use App\Models\Patient;
+use Illuminate\Http\Request;
 
 class DashboardController extends Controller
 {
+    /**
+     * Which summary fields each role is allowed to see. 'admin' always
+     * gets everything regardless of this map (see summary() below) —
+     * this list only matters for every other role.
+     */
+    private const ROLE_VISIBILITY = [
+        'reception' => ['total_patients', 'active_encounters', 'today_registrations', 'department_queue_counts'],
+        'nurse' => [
+            'total_patients', 'active_encounters', 'admitted_patients', 'today_registrations',
+            'department_queue_counts', 'pending_lab_orders', 'critical_results_unacknowledged',
+            'priority_breakdown', 'visits_last_7_days',
+        ],
+        'doctor' => [
+            'total_patients', 'active_encounters', 'admitted_patients', 'today_registrations',
+            'department_queue_counts', 'pending_lab_orders', 'critical_results_unacknowledged',
+            'priority_breakdown', 'visits_last_7_days',
+        ],
+        'lab_tech' => ['pending_lab_orders', 'critical_results_unacknowledged'],
+        'radiologist' => ['pending_lab_orders'],
+        'pharmacist' => ['low_stock_drug_count'],
+        'billing' => ['outstanding_billing_total', 'today_registrations'],
+        'dialysis_tech' => ['active_encounters', 'admitted_patients'],
+        'records_officer' => ['total_patients', 'today_registrations'],
+    ];
+
     /**
      * GET /api/dashboard/summary
      * NOTE: uses its own inline ["discharged","closed","deceased"] list
@@ -21,7 +47,22 @@ class DashboardController extends Controller
      * cancelled reception mistake still counts toward "active" in this
      * one metric — porting the reference as-is, not silently fixing it.
      */
-    public function summary()
+    public function summary(Request $request)
+    {
+        $full = $this->computeFullSummary();
+
+        $role = $request->user()->role;
+        if ($role === 'admin') {
+            return response()->json($full);
+        }
+
+        $allowedKeys = self::ROLE_VISIBILITY[$role] ?? [];
+        $scoped = array_intersect_key($full, array_flip($allowedKeys));
+
+        return response()->json($scoped);
+    }
+
+    private function computeFullSummary(): array
     {
         $today = now()->toDateString();
         $notClosed = ['discharged', 'closed', 'deceased'];
@@ -63,7 +104,7 @@ class DashboardController extends Controller
             $priorityBreakdown[$priority ?: 'routine'] = $count;
         }
 
-        return response()->json([
+        return [
             'total_patients' => $totalPatients,
             'active_encounters' => $activeEncounters,
             'today_registrations' => $todayRegistrations,
@@ -75,6 +116,6 @@ class DashboardController extends Controller
             'low_stock_drug_count' => $lowStock,
             'visits_last_7_days' => $visitsLast7Days,
             'priority_breakdown' => $priorityBreakdown,
-        ]);
+        ];
     }
 }

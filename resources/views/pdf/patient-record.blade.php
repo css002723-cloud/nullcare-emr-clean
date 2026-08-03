@@ -99,9 +99,9 @@
             @endforeach
         @endif
 
-        @if($enc->clinicalOrders->isNotEmpty())
-            <div class="subsection-title">Orders ({{ $enc->clinicalOrders->count() }})</div>
-            @foreach($enc->clinicalOrders as $o)
+        @if($enc->orders->isNotEmpty())
+            <div class="subsection-title">Orders ({{ $enc->orders->count() }})</div>
+            @foreach($enc->orders as $o)
                 <div class="body-line">- {{ $o->order_type }}: {{ $o->details }} [{{ $o->status }}, {{ $o->priority }}]</div>
             @endforeach
         @endif

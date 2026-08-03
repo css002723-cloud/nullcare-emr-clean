@@ -297,7 +297,7 @@ class PatientController extends Controller
         $patient->load('allergies');
         $encounters = Encounter::where('patient_id', $patient->id)
             ->with([
-                'vitals', 'clinicalNotes', 'clinicalOrders',
+                'vitals', 'clinicalNotes', 'orders',
                 'labOrders.result', 'imagingOrders.report',
                 'prescriptions.administrations', 'referrals.referredBy', 'invoices',
             ])

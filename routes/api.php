@@ -33,8 +33,10 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/me', [AuthController::class, 'me']);
     Route::post('/auth/logout', [AuthController::class, 'logout']);
     Route::get('/auth/me', [AuthController::class, 'me']);
-    Route::post('/change-password', [AuthController::class, 'changePassword']);
+    Route::post('/auth/change-password-self', [AuthController::class, 'changePassword']);
+    Route::put('/auth/profile', [AuthController::class, 'updateProfile']);
     Route::post('/verify-password', [AuthController::class, 'verifyPassword']);
+    Route::post('/auth/verify-password', [AuthController::class, 'verifyPassword']);
 
     // ---- Patients ----
     Route::middleware('role:reception,nurse,doctor,admin')->group(function () {

@@ -44,8 +44,10 @@ export default function Dashboard() {
 
   if (!data) return <LoadingRow label="Loading dashboard…" />;
 
-  const deptData = Object.entries(data.department_queue_counts).map(([name, value]) => ({ name, value }));
-  const priorityData = Object.entries(data.priority_breakdown).map(([name, value]) => ({ name, value }));
+  const deptData = Object.entries(data.department_queue_counts ?? {}).map(([name, value]) => ({ name, value }));
+  const priorityData = Object.entries(data.priority_breakdown ?? {}).map(([name, value]) => ({ name, value }));
+
+  const has = (key) => Object.prototype.hasOwnProperty.call(data, key);
 
   return (
     <div className="space-y-8 pb-10">
@@ -88,45 +90,65 @@ export default function Dashboard() {
       </div>
 
       {/* Primary Key Metrics */}
-      <section className="space-y-3">
-        <h2 className="text-xs font-semibold tracking-wider text-ink/50 uppercase px-1">Patient Operations</h2>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <StatCard label="Total Patients" value={data.total_patients} icon={Users} tint="teal" trend="+2.4%" />
-          <StatCard label="Active Encounters" value={data.active_encounters} icon={Activity} tint="teal" />
-          <StatCard label="Admitted Patients" value={data.admitted_patients} icon={BedDouble} tint="teal" />
-          <StatCard label="Registered Today" value={data.today_registrations} icon={ClipboardPlus} tint="teal" />
-        </div>
-      </section>
+      {(has("total_patients") || has("active_encounters") || has("admitted_patients") || has("today_registrations")) && (
+        <section className="space-y-3">
+          <h2 className="text-xs font-semibold tracking-wider text-ink/50 uppercase px-1">Patient Operations</h2>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {has("total_patients") && (
+              <StatCard label="Total Patients" value={data.total_patients} icon={Users} tint="teal" trend="+2.4%" />
+            )}
+            {has("active_encounters") && (
+              <StatCard label="Active Encounters" value={data.active_encounters} icon={Activity} tint="teal" />
+            )}
+            {has("admitted_patients") && (
+              <StatCard label="Admitted Patients" value={data.admitted_patients} icon={BedDouble} tint="teal" />
+            )}
+            {has("today_registrations") && (
+              <StatCard label="Registered Today" value={data.today_registrations} icon={ClipboardPlus} tint="teal" />
+            )}
+          </div>
+        </section>
+      )}
 
       {/* Alerts & Critical Metrics */}
-      <section className="space-y-3">
-        <h2 className="text-xs font-semibold tracking-wider text-ink/50 uppercase px-1">Operational Alerts</h2>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <StatCard
-            label="Pending Lab Orders"
-            value={data.pending_lab_orders}
-            icon={FlaskConical}
-            tone={data.pending_lab_orders > 10 ? "warning" : "neutral"}
-          />
-          <StatCard
-            label="Critical Lab Results"
-            value={data.critical_results_unacknowledged}
-            icon={AlertTriangle}
-            tone={data.critical_results_unacknowledged > 0 ? "critical" : "success"}
-          />
-          <StatCard
-            label="Outstanding Billing (MWK)"
-            value={data.outstanding_billing_total.toLocaleString()}
-            icon={Wallet}
-          />
-          <StatCard
-            label="Low Stock Drugs"
-            value={data.low_stock_drug_count}
-            icon={PackageX}
-            tone={data.low_stock_drug_count > 0 ? "warning" : "neutral"}
-          />
-        </div>
-      </section>
+      {(has("pending_lab_orders") || has("critical_results_unacknowledged") || has("outstanding_billing_total") || has("low_stock_drug_count")) && (
+        <section className="space-y-3">
+          <h2 className="text-xs font-semibold tracking-wider text-ink/50 uppercase px-1">Operational Alerts</h2>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            {has("pending_lab_orders") && (
+              <StatCard
+                label="Pending Lab Orders"
+                value={data.pending_lab_orders}
+                icon={FlaskConical}
+                tone={data.pending_lab_orders > 10 ? "warning" : "neutral"}
+              />
+            )}
+            {has("critical_results_unacknowledged") && (
+              <StatCard
+                label="Critical Lab Results"
+                value={data.critical_results_unacknowledged}
+                icon={AlertTriangle}
+                tone={data.critical_results_unacknowledged > 0 ? "critical" : "success"}
+              />
+            )}
+            {has("outstanding_billing_total") && (
+              <StatCard
+                label="Outstanding Billing (MWK)"
+                value={data.outstanding_billing_total.toLocaleString()}
+                icon={Wallet}
+              />
+            )}
+            {has("low_stock_drug_count") && (
+              <StatCard
+                label="Low Stock Drugs"
+                value={data.low_stock_drug_count}
+                icon={PackageX}
+                tone={data.low_stock_drug_count > 0 ? "warning" : "neutral"}
+              />
+            )}
+          </div>
+        </section>
+      )}
 
       {/* Recent Messages */}
       {messages.length > 0 && (
@@ -176,7 +198,7 @@ export default function Dashboard() {
             </div>
           </div>
           <ResponsiveContainer width="100%" height={240}>
-            <AreaChart data={data.visits_last_7_days} margin={{ top: 10, right: 10, left: -25, bottom: 0 }}>
+            <AreaChart data={data.visits_last_7_days ?? []} margin={{ top: 10, right: 10, left: -25, bottom: 0 }}>
               <defs>
                 <linearGradient id="visitGradient" x1="0" y1="0" x2="0" y2="1">
                   <stop offset="5%" stopColor="#0F4C4A" stopOpacity={0.3} />

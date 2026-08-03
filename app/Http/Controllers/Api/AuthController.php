@@ -73,6 +73,35 @@ class AuthController extends Controller
     }
 
     /**
+     * PUT /api/auth/profile
+     * Body: { first_name, last_name, email, phone }
+     * Lets a signed-in user edit their own contact details. Deliberately
+     * does NOT touch username, role, department, or is_active — those stay
+     * admin-only (see UserController::update) so a user can't quietly
+     * re-scope their own access through the "edit my profile" form.
+     * No new token is issued: Sanctum tokens are opaque (unlike a JWT,
+     * nothing about the user is encoded in the token string itself), so
+     * the existing token stays valid — the frontend just needs to refetch
+     * /auth/me to pick up the new name/email, which it already does.
+     */
+    public function updateProfile(Request $request)
+    {
+        $validated = $request->validate([
+            'first_name' => 'required|string|max:100',
+            'last_name' => 'required|string|max:100',
+            'email' => 'required|email|max:150|unique:users,email,'.$request->user()->id,
+            'phone' => 'nullable|string|max:30',
+        ]);
+
+        $user = $request->user();
+        $user->forceFill($validated)->save();
+
+        AuditLogger::log($user, 'update_profile', 'user', $user->id);
+
+        return response()->json(['message' => 'Profile updated', 'user' => new UserResource($user)]);
+    }
+
+    /**
      * POST /api/change-password
      * Body: { new_password }
      */
