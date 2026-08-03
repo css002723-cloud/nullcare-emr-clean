@@ -36,6 +36,113 @@ Content-Type: application/json
 | POST | `/change-password` | Change the current user password |
 | POST | `/verify-password` | Verify current password |
 
+## Settings Page
+
+These endpoints power the settings UI in the frontend.
+
+### 1) Get current user
+
+- Method: `GET`
+- Path: `/auth/me` (or `/me`)
+- Auth: Required
+
+Response example:
+
+```json
+{
+  "id": 1,
+  "username": "drjane",
+  "first_name": "Jane",
+  "last_name": "Doe",
+  "email": "jane@example.com",
+  "phone": "+2348000000000",
+  "role": "doctor",
+  "is_active": true
+}
+```
+
+### 2) Update profile
+
+- Method: `PUT`
+- Path: `/auth/profile`
+- Auth: Required
+
+Request body:
+
+```json
+{
+  "first_name": "Jane",
+  "last_name": "Doe",
+  "email": "jane@example.com",
+  "phone": "+2348000000000"
+}
+```
+
+Expected behavior:
+- Validate `first_name`, `last_name`, and `email` as required.
+- `phone` is optional.
+- `email` must be unique for all other users.
+- Do not allow changing role, department, username, or active status from this endpoint.
+
+Success response example:
+
+```json
+{
+  "message": "Profile updated",
+  "user": {
+    "id": 1,
+    "username": "drjane",
+    "first_name": "Jane",
+    "last_name": "Doe",
+    "email": "jane@example.com",
+    "phone": "+2348000000000",
+    "role": "doctor",
+    "is_active": true
+  },
+  "access_token": "<new-token-optional>"
+}
+```
+
+> The frontend will refresh the authenticated user after this call, and it will also save a new token if the backend returns one.
+
+### 3) Change password
+
+- Method: `POST`
+- Path: `/auth/change-password-self`
+- Auth: Required
+
+Request body:
+
+```json
+{
+  "current_password": "old-password",
+  "new_password": "new-password-123"
+}
+```
+
+Expected behavior:
+- Verify the current password matches the authenticated user.
+- Enforce a minimum length of 6 characters for the new password.
+- Reject the request if the new password is the same as the current password.
+
+Success response example:
+
+```json
+{
+  "message": "Password updated",
+  "user": {
+    "id": 1,
+    "username": "drjane",
+    "first_name": "Jane",
+    "last_name": "Doe",
+    "email": "jane@example.com",
+    "phone": "+2348000000000",
+    "role": "doctor",
+    "is_active": true
+  }
+}
+```
+
 ## Patients
 
 | Method | Path | Description |
