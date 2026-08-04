@@ -12,6 +12,10 @@ body {
   min-height: 100vh;
 }
 
+:root {
+  --login-brand-image: url("../../public/nullcare.jpg");
+}
+
 .split-screen {
   display: flex;
   min-height: 100vh;
@@ -25,7 +29,7 @@ body {
   justify-content: center;
   align-items: flex-start;
   padding: 5rem;
-  background-image: linear-gradient(rgba(15, 23, 42, 0.45), rgba(15, 23, 42, 0.85)), url("nullcare.jpg");
+  background-image: linear-gradient(rgba(15, 23, 42, 0.45), rgba(15, 23, 42, 0.85)), var(--login-brand-image);
   background-size: cover;
   background-position: center;
   color: #fff;

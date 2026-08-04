@@ -5,6 +5,8 @@ import { useAuth } from "../context/AuthContext";
 import { useTheme } from "../context/ThemeContext";
 import { Button, Input } from "../components/ui";
 import "./Login.css";
+import nullcareLogo from "../../public/nullcare.png";
+import emrLogo from "../../public/emr.png";
 
 export default function Login() {
   const { login } = useAuth();
@@ -48,7 +50,7 @@ export default function Login() {
         {/* Centered Main Form Area */}
         <div className="form-container-wrapper">
           <div className="form-header">
-            <img src="nullcare.png" alt="NullCare Platform Logo" className="form-logo" />
+            <img src={nullcareLogo} alt="NullCare Platform Logo" className="form-logo" />
             <p>Welcome back! Please enter your details.</p>
           </div>
 
@@ -96,7 +98,7 @@ export default function Login() {
         {/* Bottom Docked Footer */}
         <footer className="form-side-footer">
           <span>Powered by</span>
-          <img src="emr.png" alt="EMR Core System" className="footer-logo" />
+          <img src={emrLogo} alt="EMR Core System" className="footer-logo" />
         </footer>
 
       </div>

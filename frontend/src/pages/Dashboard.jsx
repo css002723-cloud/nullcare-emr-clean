@@ -11,6 +11,7 @@ import api from "../services/api";
 import { Card, Badge, LoadingRow } from "../components/ui";
 import { useAuth } from "../context/AuthContext";
 import { Link } from "react-router-dom";
+import emrLogo from "../../public/emr.png";
 
 const COLOR_PALETTE = ["#0F4C4A", "#3F8C84", "#D98E2F", "#C8443C", "#3A7D5C"];
 
@@ -54,7 +55,7 @@ export default function Dashboard() {
       {/* Top Navigation & Branding Bar */}
       <header className="sticky top-0 z-20 backdrop-blur-md bg-surface/80 border-b border-line -mx-6 -mt-6 px-6 py-3.5 mb-6 flex items-center justify-between transition-all">
         <div className="flex items-center gap-3">
-          <img src="/emr.png" alt="EMR Logo" className="h-9 w-auto object-contain rounded-lg" />
+          <img src={emrLogo} alt="EMR Logo" className="h-9 w-auto object-contain rounded-lg" />
         </div>
 
         <div className="flex items-center gap-3">
