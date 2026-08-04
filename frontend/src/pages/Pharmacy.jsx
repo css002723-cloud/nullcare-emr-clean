@@ -84,6 +84,7 @@ export default function Pharmacy() {
             <Card key={rx.id}>
               <div className="flex items-center justify-between flex-wrap gap-2">
                 <div>
+                  <p className="text-sm font-semibold text-teal-700">{rx.patient_name || "Patient name unavailable"}</p>
                   <p className="font-semibold">{rx.drug_name} {rx.formulation}</p>
                   <p className="text-xs text-ink/50">{rx.dose} · {rx.route} · {rx.frequency} · {rx.duration}</p>
                   {rx.is_pediatric_dose && <Badge tone="warning" className="mt-1">Pediatric dose — verify weight-based calculation</Badge>}

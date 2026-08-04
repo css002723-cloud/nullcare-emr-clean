@@ -1,0 +1,185 @@
+@import url("https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap");
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: "Poppins", sans-serif;
+  background: #fff;
+  min-height: 100vh;
+}
+
+.split-screen {
+  display: flex;
+  min-height: 100vh;
+  width: 100%;
+}
+
+.brand-side {
+  flex: 1.2;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 5rem;
+  background-image: linear-gradient(rgba(15, 23, 42, 0.45), rgba(15, 23, 42, 0.85)), url("nullcare.jpg");
+  background-size: cover;
+  background-position: center;
+  color: #fff;
+}
+
+.brand-side .logo {
+  font-size: 3.8rem;
+  font-weight: 700;
+  margin-bottom: 1.2rem;
+  letter-spacing: -1px;
+}
+
+.brand-side p {
+  font-size: 1.35rem;
+  font-weight: 300;
+  max-width: 480px;
+  line-height: 1.6;
+  opacity: 0.95;
+}
+
+.form-side {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  background-color: #ffffff;
+  padding: 2.5rem;
+}
+
+.form-container-wrapper {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+}
+
+.form-header {
+  text-align: center;
+  margin-bottom: 2.5rem;
+}
+
+.form-header .form-logo {
+  height: 54px;
+  width: auto;
+  object-fit: contain;
+  margin-bottom: 0.75rem;
+}
+
+.form-header p {
+  font-size: 0.95rem;
+  color: #64748b;
+  font-weight: 400;
+}
+
+form {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 380px;
+}
+
+form input {
+  outline: none;
+  padding: 0.85rem 1.1rem;
+  margin-bottom: 1rem;
+  font-size: 1rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 0.5rem;
+  transition: all 0.2s ease;
+  width: 100%;
+}
+
+form input:focus {
+  border-color: #1877f2;
+  box-shadow: 0 0 0 3px rgba(24, 119, 242, 0.15);
+}
+
+.password-wrapper {
+  position: relative;
+  width: 100%;
+}
+
+.password-wrapper input {
+  padding-right: 3rem;
+}
+
+.password-toggle-btn {
+  position: absolute;
+  right: 1rem;
+  top: 38%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  color: #94a3b8;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0.25rem;
+  border-radius: 0.25rem;
+  transition: color 0.2s ease;
+}
+
+.password-toggle-btn:hover {
+  color: #64748b;
+}
+
+.form-side-footer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  padding-top: 1.5rem;
+  border-top: 1px solid #f1f5f9;
+  color: #94a3b8;
+  font-size: 0.85rem;
+}
+
+.form-side-footer .footer-logo {
+  height: 18px;
+  width: auto;
+  object-fit: contain;
+  opacity: 0.8;
+}
+
+@media (max-width: 768px) {
+  .split-screen {
+    flex-direction: column;
+  }
+
+  .brand-side {
+    flex: none;
+    min-height: 35vh;
+    padding: 3rem 2rem;
+    align-items: center;
+    text-align: center;
+  }
+
+  .brand-side .logo {
+    font-size: 2.8rem;
+  }
+
+  .brand-side p {
+    font-size: 1.1rem;
+  }
+
+  .form-side {
+    flex: 1;
+    padding: 3rem 1.5rem 1.5rem 1.5rem;
+  }
+
+  .form-container-wrapper {
+    justify-content: flex-start;
+    padding-top: 1rem;
+  }
+}

@@ -7,6 +7,15 @@
 <a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
 </p>
 
+## Project Documentation
+
+This repository contains a full-stack NullCare EMR application with a Laravel backend and a React frontend.
+
+For the complete project guide, setup notes, and API reference, see:
+- [docs/PROJECT_DOCUMENTATION.md](docs/PROJECT_DOCUMENTATION.md)
+- [SETUP_GUIDE.md](SETUP_GUIDE.md)
+- [API_REFERENCE.md](API_REFERENCE.md)
+
 ## About Laravel
 
 Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:

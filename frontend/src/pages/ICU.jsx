@@ -80,12 +80,25 @@ export default function ICU() {
             <Card
               key={p.id}
               className="cursor-pointer hover:border-teal-300 transition-colors"
+              role="button"
+              tabIndex={0}
               onClick={() => navigate(`/icu/${p.id}`)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  navigate(`/icu/${p.id}`);
+                }
+              }}
             >
               <div className="flex items-center justify-between flex-wrap gap-2">
-                <div>
-                  <p className="font-semibold">{p.patient?.full_name}</p>
-                  <p className="text-xs text-ink/50 mrn-mono">{p.mrn} · Bed {p.bed || "—"}</p>
+                <div className="flex items-start gap-3">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-teal-50 text-sm font-semibold text-teal-700">
+                    {patients.findIndex((item) => item.id === p.id) + 1}
+                  </div>
+                  <div>
+                    <p className="font-semibold">{p.patient?.full_name || p.patient?.given_name && p.patient?.family_name ? `${p.patient.given_name} ${p.patient.family_name}` : p.patient?.name || "Unnamed patient"}</p>
+                    <p className="text-xs text-ink/50 mrn-mono">{p.mrn} · Bed {p.bed || "—"}</p>
+                  </div>
                 </div>
                 <div className="flex items-center gap-2">
                   {p.sepsis_alert && <Badge tone="critical" icon={Skull}>Sepsis alert</Badge>}

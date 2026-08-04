@@ -31,7 +31,14 @@ class PharmacyController extends Controller
             $query->where('encounter_id', $request->query('encounter_id'));
         }
 
-        return response()->json($query->latest()->get());
+        $prescriptions = $query->latest()->with('patient')->get()->map(function (Prescription $prescription) {
+            $payload = $prescription->toArray();
+            $payload['patient_name'] = $prescription->patient?->full_name;
+
+            return $payload;
+        });
+
+        return response()->json($prescriptions);
     }
 
     /**
@@ -72,6 +79,7 @@ class PharmacyController extends Controller
         );
 
         $result = $prescription->toArray();
+        $result['patient_name'] = $patient->full_name;
         $result['cds_alerts_list'] = $alerts;
 
         return response()->json($result, 201);
@@ -133,6 +141,7 @@ class PharmacyController extends Controller
         AuditLogger::log($request->user(), 'dispense_medication', 'prescription', $prescription->id, $stockWarning);
 
         $result = $prescription->toArray();
+        $result['patient_name'] = $prescription->patient?->full_name;
         $result['stock_warning'] = $stockWarning;
 
         return response()->json($result);

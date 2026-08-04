@@ -40,6 +40,7 @@ class LabController extends Controller
 
         $result = $orders->map(function (LabOrder $o) {
             $d = $o->toArray();
+            $d['patient_name'] = $o->patient?->full_name;
             $d['result'] = LabResult::where('lab_order_id', $o->id)->first();
 
             return $d;

@@ -17,6 +17,7 @@ use Illuminate\Http\Request;
 class ICUController extends Controller
 {
     private const ICU_WARD = 'ICU/HDU';
+    private const ICU_WARD_ALIASES = ['ICU/HDU', 'ICU', 'HDU'];
 
     private function latestEws(int $encounterId): ?int
     {
@@ -29,7 +30,14 @@ class ICUController extends Controller
      */
     public function listPatients()
     {
-        $encounters = Encounter::where('stage', 'admitted')->where('ward', self::ICU_WARD)->latest()->get();
+        $encounters = Encounter::where('stage', 'admitted')
+            ->where(function ($query) {
+                $query->whereIn('ward', self::ICU_WARD_ALIASES)
+                    ->orWhere('current_department', 'ICU')
+                    ->orWhere('current_department', 'HDU');
+            })
+            ->latest()
+            ->get();
 
         $result = $encounters->map(function (Encounter $e) {
             $d = $e->toArray();
@@ -197,7 +205,13 @@ class ICUController extends Controller
      */
     public function criticalAlerts()
     {
-        $icuEncounterIds = Encounter::where('stage', 'admitted')->where('ward', self::ICU_WARD)->pluck('id');
+        $icuEncounterIds = Encounter::where('stage', 'admitted')
+            ->where(function ($query) {
+                $query->whereIn('ward', self::ICU_WARD_ALIASES)
+                    ->orWhere('current_department', 'ICU')
+                    ->orWhere('current_department', 'HDU');
+            })
+            ->pluck('id');
 
         if ($icuEncounterIds->isEmpty()) {
             return response()->json(['critical_labs' => [], 'critical_imaging' => [], 'sepsis_alerts' => []]);

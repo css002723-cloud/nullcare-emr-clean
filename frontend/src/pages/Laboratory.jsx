@@ -181,6 +181,7 @@ function LabOrderRow({ order, onCollect, onReceive, onResulted }) {
     <Card>
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
+          <p className="text-sm font-semibold text-teal-700">{order.patient_name || "Patient name unavailable"}</p>
           <p className="font-semibold">{order.loinc_display || order.test_code}</p>
           <p className="text-xs text-ink/50 mrn-mono">LOINC {order.loinc_code || "n/a"} · barcode {order.barcode}</p>
         </div>
