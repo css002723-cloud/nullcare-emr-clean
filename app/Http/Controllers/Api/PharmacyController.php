@@ -85,18 +85,43 @@ class PharmacyController extends Controller
      * to record a real-world dispense that already happened would just
      * make the data wrong, not prevent the dispense.
      */
+    /**
+     * POST /api/pharmacy/prescriptions/{prescription}/dispense
+     * Roles: pharmacist, admin
+     * Body (optional): { confirm_unlisted_drug: bool }
+     *
+     * If the prescribed drug isn't in the DrugStock catalog at all, we
+     * can't verify it's a real, tracked item — dispensing it silently
+     * would mean the system has zero visibility into what just left the
+     * pharmacy. Rather than blocking outright (the catalog may genuinely
+     * be incomplete), this requires an explicit confirm_unlisted_drug
+     * flag before proceeding, and always records a clear warning either
+     * way — never a silent, unflagged dispense.
+     */
     public function dispense(Request $request, Prescription $prescription)
     {
-        $stock = DrugStock::where('drug_name', $prescription->drug_name)->first();
+        // Case/whitespace-insensitive match — a doctor typing "Amoxicillin "
+        // or "AMOXICILLIN" for a stock item filed as "amoxicillin" should
+        // still resolve to the same catalog entry, not fall through to the
+        // unlisted-drug path.
+        $stock = DrugStock::whereRaw('LOWER(TRIM(drug_name)) = ?', [strtolower(trim($prescription->drug_name))])->first();
         $stockWarning = null;
 
-        if ($stock) {
-            if ($stock->quantity_on_hand <= 0) {
-                $stockWarning = 'Out of stock — dispensing recorded but stock is at zero. Reorder immediately.';
-            } else {
-                $stock->quantity_on_hand = max(0, $stock->quantity_on_hand - 1);
-                $stock->save();
+        if (! $stock) {
+            if (! $request->boolean('confirm_unlisted_drug')) {
+                return response()->json([
+                    'error' => 'drug_not_in_catalog',
+                    'message' => "\"{$prescription->drug_name}\" is not in the pharmacy stock catalog, so its availability can't be verified. Confirm to dispense anyway.",
+                    'requires_confirmation' => true,
+                ], 422);
             }
+
+            $stockWarning = "\"{$prescription->drug_name}\" is not tracked in the pharmacy stock catalog — dispensed without stock verification. Consider adding it to the catalog.";
+        } elseif ($stock->quantity_on_hand <= 0) {
+            $stockWarning = 'Out of stock — dispensing recorded but stock is at zero. Reorder immediately.';
+        } else {
+            $stock->quantity_on_hand = max(0, $stock->quantity_on_hand - 1);
+            $stock->save();
         }
 
         $prescription->update([
@@ -105,7 +130,7 @@ class PharmacyController extends Controller
             'dispensed_at' => now(),
         ]);
 
-        AuditLogger::log($request->user(), 'dispense_medication', 'prescription', $prescription->id);
+        AuditLogger::log($request->user(), 'dispense_medication', 'prescription', $prescription->id, $stockWarning);
 
         $result = $prescription->toArray();
         $result['stock_warning'] = $stockWarning;
@@ -152,7 +177,11 @@ class PharmacyController extends Controller
             return response()->json(['error' => 'missing_fields'], 400);
         }
 
-        $stock = DrugStock::firstOrNew(['drug_name' => $request->input('drug_name')]);
+        // Reuse an existing row that only differs by case/whitespace instead
+        // of creating a duplicate catalog entry (see the same normalization
+        // in dispense()).
+        $stock = DrugStock::whereRaw('LOWER(TRIM(drug_name)) = ?', [strtolower(trim($request->input('drug_name')))])->first()
+            ?? new DrugStock(['drug_name' => $request->input('drug_name')]);
         $stock->quantity_on_hand = $request->input('quantity_on_hand', $stock->quantity_on_hand ?? 0);
         $stock->reorder_level = $request->input('reorder_level', $stock->reorder_level ?? 10);
         $stock->unit = $request->input('unit', $stock->unit ?? 'tablets');

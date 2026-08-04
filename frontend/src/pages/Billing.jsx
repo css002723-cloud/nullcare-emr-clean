@@ -417,28 +417,42 @@ function InvoiceRow({
 }) {
   const [amount, setAmount] =
     useState("");
+  const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
 
   async function pay() {
     if (!amount) return;
-
-    await api.post(
-      `/billing/invoices/${invoice.id}/pay`,
-      {
-        amount: Number(amount),
-      }
-    );
-
-    setAmount("");
-
-    onSaved();
+    setError("");
+    setSaving(true);
+    try {
+      await api.post(
+        `/billing/invoices/${invoice.id}/pay`,
+        {
+          amount: Number(amount),
+        }
+      );
+      setAmount("");
+      onSaved();
+    } catch (err) {
+      setError(err.response?.data?.message || "Payment wasn't recorded — please try again before assuming it went through.");
+    } finally {
+      setSaving(false);
+    }
   }
 
   async function waive() {
-    await api.post(
-      `/billing/invoices/${invoice.id}/waive`
-    );
-
-    onSaved();
+    setError("");
+    setSaving(true);
+    try {
+      await api.post(
+        `/billing/invoices/${invoice.id}/waive`
+      );
+      onSaved();
+    } catch (err) {
+      setError(err.response?.data?.message || "Couldn't waive this invoice — please try again.");
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
@@ -495,19 +509,22 @@ function InvoiceRow({
             <Button
               size="sm"
               onClick={pay}
+              disabled={saving}
             >
-              Record payment
+              {saving ? "Recording…" : "Record payment"}
             </Button>
 
             <Button
               size="sm"
               variant="ghost"
               onClick={waive}
+              disabled={saving}
             >
               Waive
             </Button>
           </div>
         )}
+      {error && <p className="text-xs text-alert bg-alert/5 border border-alert/20 rounded px-2 py-1 mt-2">{error}</p>}
     </Card>
   );
 }

@@ -14,6 +14,7 @@ export default function PatientDetail() {
   const [showAllergyForm, setShowAllergyForm] = useState(false);
   const [allergy, setAllergy] = useState({ substance: "", reaction: "", severity: "mild" });
   const [exporting, setExporting] = useState(false);
+  const [error, setError] = useState("");
 
   async function load() {
     setLoading(true);
@@ -34,15 +35,21 @@ export default function PatientDetail() {
   async function addAllergy(e) {
     e.preventDefault();
     if (!allergy.substance || !patient) return;
-    await api.post(`/patients/${patient.id}/allergies`, allergy);
-    setAllergy({ substance: "", reaction: "", severity: "mild" });
-    setShowAllergyForm(false);
-    load();
+    setError("");
+    try {
+      await api.post(`/patients/${patient.id}/allergies`, allergy);
+      setAllergy({ substance: "", reaction: "", severity: "mild" });
+      setShowAllergyForm(false);
+      load();
+    } catch (err) {
+      setError(err.response?.data?.message || "Couldn't save the allergy — please try again. This is safety-critical, so don't assume it was recorded.");
+    }
   }
 
   async function exportRecord() {
     if (!patient) return;
     setExporting(true);
+    setError("");
     try {
       const res = await api.get(`/patients/${patient.id}/export`, { responseType: "blob" });
       const url = URL.createObjectURL(new Blob([res.data], { type: "application/pdf" }));
@@ -51,6 +58,8 @@ export default function PatientDetail() {
       a.download = `nullcare-${patient.patient_uid}-full-record.pdf`;
       a.click();
       URL.revokeObjectURL(url);
+    } catch {
+      setError("Couldn't export the record — please try again.");
     } finally {
       setExporting(false);
     }
@@ -126,6 +135,7 @@ export default function PatientDetail() {
               <Button size="sm" type="submit">Save allergy</Button>
             </form>
           )}
+          {error && <p className="mt-2 text-xs text-alert bg-alert/5 border border-alert/20 rounded px-2 py-1">{error}</p>}
         </Card>
       </div>
 

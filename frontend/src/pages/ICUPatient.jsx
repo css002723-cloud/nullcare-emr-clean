@@ -133,15 +133,19 @@ function ReviewNotePanel({ encounterId, onSaved }) {
     inotropes: "", fluid_balance_summary: "", sepsis_alert: false, body: "",
   });
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
 
   async function submit(e) {
     e.preventDefault();
     if (!form.body) return;
     setSaving(true);
+    setError("");
     try {
       await api.post("/icu/notes", { encounter_id: Number(encounterId), ...form });
       setForm({ note_type: "daily_review", ventilation_status: "", oxygen_therapy: "", sedation_assessment: "", inotropes: "", fluid_balance_summary: "", sepsis_alert: false, body: "" });
       onSaved();
+    } catch (err) {
+      setError(err.response?.data?.message || "Couldn't save the note — please try again.");
     } finally {
       setSaving(false);
     }
@@ -172,6 +176,7 @@ function ReviewNotePanel({ encounterId, onSaved }) {
           Raise sepsis alert
         </label>
         <Button type="submit" disabled={saving} className="md:col-span-2">{saving ? "Saving…" : "Add note"}</Button>
+        {error && <p className="text-xs text-alert bg-alert/5 border border-alert/20 rounded px-2 py-1 md:col-span-2">{error}</p>}
       </form>
     </Card>
   );
@@ -182,14 +187,18 @@ function DischargePanel({ encounterId, onDone }) {
   const [summary, setSummary] = useState("");
   const [confirmDeath, setConfirmDeath] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
 
   async function submit(e) {
     e.preventDefault();
     if (outcome === "died" && !confirmDeath) return;
     setSaving(true);
+    setError("");
     try {
       await api.post("/icu/discharge", { encounter_id: Number(encounterId), outcome, summary });
       onDone();
+    } catch (err) {
+      setError(err.response?.data?.message || "Couldn't complete the ICU discharge — please try again.");
     } finally {
       setSaving(false);
     }
@@ -215,6 +224,7 @@ function DischargePanel({ encounterId, onDone }) {
         <Button type="submit" variant={outcome === "died" ? "danger" : "primary"} disabled={saving || (outcome === "died" && !confirmDeath)}>
           {saving ? "Saving…" : "Confirm ICU discharge"}
         </Button>
+        {error && <p className="text-xs text-alert bg-alert/5 border border-alert/20 rounded px-2 py-1">{error}</p>}
       </form>
     </Card>
   );

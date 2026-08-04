@@ -361,12 +361,18 @@ class DemoClinicalSeeder extends Seeder
     private function admittedWithDispensedMeds(): void
     {
         $patient = Patient::factory()->adult()->create(['registered_by' => $this->reception->id]);
+        $ward = $patient->sex === 'female'
+    ? 'Female Ward'
+    : 'Male Ward';
 
+$bed = $patient->sex === 'female'
+    ? 'FW-12'
+    : 'MW-12';
         $encounter = $this->encounter($patient, [
             'stage' => 'admitted',
             'current_department' => 'General Ward',
-            'ward' => 'Male Ward',
-            'bed' => 'MW-12',
+            'ward' => $ward,
+            'bed' => $bed,
             'chief_complaint' => 'Severe community-acquired pneumonia',
             'admission_diagnosis' => 'Community-acquired pneumonia',
             'assigned_clinician_id' => $this->doctor->id,

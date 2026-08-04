@@ -452,16 +452,25 @@ function StatCard({ label, value, tone }) {
 
 function ResolveButton({ reportId, onResolved }) {
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
   async function resolve() {
     setSaving(true);
+    setError("");
     try {
       await api.post(`/inventory/downtime/${reportId}/resolve`);
       onResolved();
+    } catch {
+      setError("Couldn't resolve — try again.");
     } finally {
       setSaving(false);
     }
   }
-  return <Button size="sm" variant="ghost" icon={CheckCircle2} onClick={resolve} disabled={saving}>Resolve</Button>;
+  return (
+    <span className="inline-flex items-center gap-2">
+      <Button size="sm" variant="ghost" icon={CheckCircle2} onClick={resolve} disabled={saving}>Resolve</Button>
+      {error && <span className="text-xs text-alert">{error}</span>}
+    </span>
+  );
 }
 
 function NewEquipmentForm({ onSaved }) {
@@ -573,13 +582,17 @@ function EquipmentDetail({ equipment, canManage, onChanged }) {
 function MaintenanceForm({ equipmentId, onSaved }) {
   const [form, setForm] = useState({ maintenance_type: "routine", performed_by_name: "", notes: "", cost: "", next_maintenance_due: "" });
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
 
   async function submit(e) {
     e.preventDefault();
     setSaving(true);
+    setError("");
     try {
       await api.post(`/inventory/equipment/${equipmentId}/maintenance`, { ...form, cost: form.cost ? Number(form.cost) : undefined });
       onSaved();
+    } catch (err) {
+      setError(err.response?.data?.message || "Couldn't log maintenance — please try again.");
     } finally {
       setSaving(false);
     }
@@ -596,6 +609,7 @@ function MaintenanceForm({ equipmentId, onSaved }) {
       <Input type="number" placeholder="Cost (optional)" value={form.cost} onChange={(e) => setForm({ ...form, cost: e.target.value })} />
       <Field label="Next maintenance due"><Input type="date" value={form.next_maintenance_due} onChange={(e) => setForm({ ...form, next_maintenance_due: e.target.value })} /></Field>
       <Button type="submit" size="sm" disabled={saving} className="md:col-span-2">{saving ? "Saving…" : "Log maintenance"}</Button>
+      {error && <p className="md:col-span-2 text-xs text-alert bg-alert/5 border border-alert/20 rounded px-2 py-1">{error}</p>}
     </form>
   );
 }
@@ -604,13 +618,17 @@ function DowntimeForm({ equipmentId, onSaved }) {
   const [reason, setReason] = useState("");
   const [impact, setImpact] = useState("");
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
 
   async function submit(e) {
     e.preventDefault();
     setSaving(true);
+    setError("");
     try {
       await api.post(`/inventory/equipment/${equipmentId}/downtime`, { reason, impact_notes: impact });
       onSaved();
+    } catch (err) {
+      setError(err.response?.data?.message || "Couldn't log downtime — please try again.");
     } finally {
       setSaving(false);
     }
@@ -621,6 +639,7 @@ function DowntimeForm({ equipmentId, onSaved }) {
       <Textarea placeholder="Reason for downtime" value={reason} onChange={(e) => setReason(e.target.value)} />
       <Textarea placeholder="Clinical/operational impact" value={impact} onChange={(e) => setImpact(e.target.value)} />
       <Button type="submit" size="sm" variant="danger" disabled={saving}>{saving ? "Reporting…" : "Report downtime"}</Button>
+      {error && <p className="text-xs text-alert bg-alert/10 border border-alert/30 rounded px-2 py-1">{error}</p>}
     </form>
   );
 }

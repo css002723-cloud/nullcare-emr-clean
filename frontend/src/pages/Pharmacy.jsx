@@ -25,9 +25,28 @@ export default function Pharmacy() {
 
   useEffect(() => { load(); }, [load]);
 
-  async function dispense(id) {
-    await api.post(`/pharmacy/prescriptions/${id}/dispense`);
-    load();
+  const [warning, setWarning] = useState(null);
+
+  async function dispense(id, confirmUnlisted = false) {
+    try {
+      const res = await api.post(`/pharmacy/prescriptions/${id}/dispense`, {
+        confirm_unlisted_drug: confirmUnlisted,
+      });
+      if (res.data.stock_warning) setWarning({ id, message: res.data.stock_warning });
+      else setWarning(null);
+      load();
+    } catch (err) {
+      if (err.response?.status === 422 && err.response.data?.requires_confirmation) {
+        const proceed = window.confirm(err.response.data.message + "\n\nDispense anyway?");
+        if (proceed) {
+          dispense(id, true);
+        } else {
+          setWarning({ id, message: "Not dispensed — drug isn't in the stock catalog. Add it under Stock levels below, or confirm to dispense without stock tracking." });
+        }
+      } else {
+        setWarning({ id, message: err.response?.data?.message || "Couldn't dispense — please try again." });
+      }
+    }
   }
 
   const lowStock = stock.filter((s) => s.low_stock);
@@ -74,6 +93,11 @@ export default function Pharmacy() {
                 )}
                 {rx.status === "dispensed" && <Badge tone="success">Dispensed</Badge>}
               </div>
+              {warning?.id === rx.id && (
+                <p className="mt-2 text-xs text-alert bg-alert/5 border border-alert/20 rounded px-2 py-1">
+                  {warning.message}
+                </p>
+              )}
               {rx.cds_alerts && JSON.parse(rx.cds_alerts).length > 0 && (
                 <div className="mt-2 space-y-1">
                   {JSON.parse(rx.cds_alerts).map((alert, i) => (

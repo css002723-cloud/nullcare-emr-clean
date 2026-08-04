@@ -22,6 +22,7 @@ export default function PatientLookup({ requireEncounter = false, onSelect, onCl
   const [encounters, setEncounters] = useState([]);
   const [selectedEncounterId, setSelectedEncounterId] = useState("");
   const [loadingEncounters, setLoadingEncounters] = useState(false);
+  const [encounterLookupError, setEncounterLookupError] = useState(false);
   const debounceRef = useRef(null);
   const containerRef = useRef(null);
 
@@ -67,6 +68,7 @@ export default function PatientLookup({ requireEncounter = false, onSelect, onCl
     }
 
     setLoadingEncounters(true);
+    setEncounterLookupError(false);
     try {
       const res = await api.get(`/patients/${patient.id}/history`);
       const active = res.data.filter((e) => !CLOSED_STAGES.includes(e.stage));
@@ -82,6 +84,9 @@ export default function PatientLookup({ requireEncounter = false, onSelect, onCl
       } else {
         onSelect({ patientId: patient.id, patientLabel: `${patient.full_name} (${patient.patient_uid})`, encounterId: null });
       }
+    } catch {
+      setEncounterLookupError(true);
+      onSelect({ patientId: patient.id, patientLabel: `${patient.full_name} (${patient.patient_uid})`, encounterId: null });
     } finally {
       setLoadingEncounters(false);
     }
@@ -126,6 +131,10 @@ export default function PatientLookup({ requireEncounter = false, onSelect, onCl
         {requireEncounter && (
           loadingEncounters ? (
             <p className="text-xs text-ink/40">Looking up this patient's open visits…</p>
+          ) : encounterLookupError ? (
+            <p className="text-xs text-alert bg-alert/5 border border-alert/20 rounded-lg px-3 py-2">
+              Couldn't check this patient's open visits — please retry before assuming they have none (re-registering could create a duplicate visit).
+            </p>
           ) : encounters.length === 0 ? (
             <p className="text-xs text-alert bg-alert/5 border border-alert/20 rounded-lg px-3 py-2">
               This patient has no open visit right now — they'll need to be registered at reception first.

@@ -14,6 +14,7 @@ export default function Laboratory() {
   const [tab, setTab] = useState("ordered");
   const [loading, setLoading] = useState(true);
   const [catalog, setCatalog] = useState({});
+  const [actionError, setActionError] = useState("");
 
   const load = useCallback((status) => {
     setLoading(true);
@@ -27,12 +28,22 @@ export default function Laboratory() {
   useEffect(() => { api.get("/lab/catalog").then((res) => setCatalog(res.data)).catch(() => {}); }, []);
 
   async function collect(id) {
-    await api.post(`/lab/orders/${id}/collect`);
-    load(tab);
+    setActionError("");
+    try {
+      await api.post(`/lab/orders/${id}/collect`);
+      load(tab);
+    } catch (err) {
+      setActionError(err.response?.data?.message || "Couldn't mark specimen collected — please try again.");
+    }
   }
   async function receive(id) {
-    await api.post(`/lab/orders/${id}/receive`);
-    load(tab);
+    setActionError("");
+    try {
+      await api.post(`/lab/orders/${id}/receive`);
+      load(tab);
+    } catch (err) {
+      setActionError(err.response?.data?.message || "Couldn't mark specimen received — please try again.");
+    }
   }
 
   return (
@@ -58,6 +69,10 @@ export default function Laboratory() {
           </button>
         ))}
       </div>
+
+      {actionError && (
+        <p className="text-xs text-alert bg-alert/5 border border-alert/20 rounded px-2 py-1">{actionError}</p>
+      )}
 
       {loading ? <LoadingRow /> : orders.length === 0 ? (
         <EmptyState title={`No ${tab} orders`} />
@@ -145,14 +160,18 @@ function LabOrderRow({ order, onCollect, onReceive, onResulted }) {
   const [showResultForm, setShowResultForm] = useState(false);
   const [result, setResult] = useState({ result_value: "", unit: "", reference_range: "", is_critical: false, is_abnormal: false, interpretation: "" });
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
 
   async function submitResult(e) {
     e.preventDefault();
     setSaving(true);
+    setError("");
     try {
       await api.post(`/lab/orders/${order.id}/result`, result);
       setShowResultForm(false);
       onResulted();
+    } catch (err) {
+      setError(err.response?.data?.message || "Couldn't save the result — please try again.");
     } finally {
       setSaving(false);
     }
@@ -196,6 +215,7 @@ function LabOrderRow({ order, onCollect, onReceive, onResulted }) {
             <input type="checkbox" checked={result.is_critical} onChange={(e) => setResult({ ...result, is_critical: e.target.checked })} /> Critical value — triggers alert
           </label>
           <Button type="submit" className="md:col-span-2" disabled={saving}>{saving ? "Saving…" : "Save result"}</Button>
+          {error && <p className="text-xs text-alert bg-alert/5 border border-alert/20 rounded px-2 py-1 md:col-span-2">{error}</p>}
         </form>
       )}
     </Card>

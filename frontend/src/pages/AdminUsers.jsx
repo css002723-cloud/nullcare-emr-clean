@@ -101,20 +101,36 @@ function NewUserForm({ onSaved }) {
 function UserRow({ user, onChanged }) {
   const [editingRole, setEditingRole] = useState(false);
   const [role, setRole] = useState(user.role);
+  const [error, setError] = useState("");
 
   async function saveRole() {
-    await api.put(`/users/${user.id}`, { role });
-    setEditingRole(false);
-    onChanged();
+    setError("");
+    try {
+      await api.put(`/users/${user.id}`, { role });
+      setEditingRole(false);
+      onChanged();
+    } catch (err) {
+      setError(err.response?.data?.message || "Couldn't update role.");
+    }
   }
   async function toggleActive() {
-    await api.put(`/users/${user.id}`, { is_active: !user.is_active });
-    onChanged();
+    setError("");
+    try {
+      await api.put(`/users/${user.id}`, { is_active: !user.is_active });
+      onChanged();
+    } catch (err) {
+      setError(err.response?.data?.message || "Couldn't update status.");
+    }
   }
   async function remove() {
     if (!window.confirm(`Delete ${user.full_name}? This cannot be undone.`)) return;
-    await api.delete(`/users/${user.id}`);
-    onChanged();
+    setError("");
+    try {
+      await api.delete(`/users/${user.id}`);
+      onChanged();
+    } catch (err) {
+      setError(err.response?.data?.message || "Couldn't delete this user.");
+    }
   }
 
   return (
@@ -148,6 +164,7 @@ function UserRow({ user, onChanged }) {
           <Button size="sm" variant="ghost" onClick={toggleActive}>{user.is_active ? "Disable" : "Enable"}</Button>
           <Button size="sm" variant="danger" onClick={remove}>Delete</Button>
         </div>
+        {error && <p className="text-xs text-alert mt-1">{error}</p>}
       </td>
     </tr>
   );

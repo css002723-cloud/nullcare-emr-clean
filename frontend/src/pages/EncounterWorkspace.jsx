@@ -82,6 +82,7 @@ export default function EncounterWorkspace() {
       {hasRole("doctor", "nurse") && (
         <DispositionPanel
           encounterId={id}
+          patientSex={patient?.sex}
           onSaved={() => { load(); flash("Disposition recorded"); }}
           onClosed={() => navigate("/dashboard")}
         />
@@ -93,17 +94,21 @@ export default function EncounterWorkspace() {
 function VitalsPanel({ encounterId, vitals, onSaved }) {
   const [form, setForm] = useState({});
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
   const latest = vitals[vitals.length - 1];
 
   async function submit(e) {
     e.preventDefault();
     setSaving(true);
+    setError("");
     try {
       const payload = { encounter_id: Number(encounterId) };
       Object.entries(form).forEach(([k, v]) => { if (v !== "") payload[k] = Number(v); });
       await createWithOfflineFallback("vitals", "/vitals", payload);
       setForm({});
       onSaved();
+    } catch (err) {
+      setError(err.response?.data?.message || "Couldn't save vitals — please try again.");
     } finally {
       setSaving(false);
     }
@@ -132,6 +137,7 @@ function VitalsPanel({ encounterId, vitals, onSaved }) {
         <Field label="Weight (kg)"><Input type="number" step="0.1" value={form.weight_kg || ""} onChange={(e) => setForm({ ...form, weight_kg: e.target.value })} /></Field>
         <Field label="Height (cm)"><Input type="number" value={form.height_cm || ""} onChange={(e) => setForm({ ...form, height_cm: e.target.value })} /></Field>
         <Button type="submit" className="col-span-2" disabled={saving}>{saving ? "Saving…" : "Record vitals"}</Button>
+        {error && <p className="col-span-2 text-xs text-alert bg-alert/5 border border-alert/20 rounded px-2 py-1">{error}</p>}
       </form>
     </Card>
   );
@@ -141,13 +147,17 @@ function VitalsPanel({ encounterId, vitals, onSaved }) {
 function OrdersPanel({ encounterId, orders, onSaved }) {
   const [form, setForm] = useState({ order_type: "lab", details: "", target_department: "laboratory", priority: "routine" });
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
 
   async function submit(e) {
     e.preventDefault();
     setSaving(true);
+    setError("");
     try {
       await createWithOfflineFallback("order", "/orders", { encounter_id: Number(encounterId), ...form });
       onSaved();
+    } catch (err) {
+      setError(err.response?.data?.message || "Couldn't place the order — please try again.");
     } finally {
       setSaving(false);
     }
@@ -179,6 +189,7 @@ function OrdersPanel({ encounterId, orders, onSaved }) {
           <option value="stat">Stat</option>
         </Select>
         <Button type="submit" disabled={saving}>{saving ? "Placing…" : "Place order"}</Button>
+        {error && <p className="text-xs text-alert bg-alert/5 border border-alert/20 rounded px-2 py-1">{error}</p>}
       </form>
     </Card>
   );
@@ -188,16 +199,20 @@ function ReferralPanel({ encounterId, currentDept, onSaved }) {
   const [to, setTo] = useState("laboratory");
   const [reason, setReason] = useState("");
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
 
   async function submit(e) {
     e.preventDefault();
     setSaving(true);
+    setError("");
     try {
       await createWithOfflineFallback("referral", "/referrals", {
         encounter_id: Number(encounterId), to_department: to, reason,
       });
       setReason("");
       onSaved();
+    } catch (err) {
+      setError(err.response?.data?.message || "Couldn't send the referral — please try again.");
     } finally {
       setSaving(false);
     }
@@ -213,6 +228,7 @@ function ReferralPanel({ encounterId, currentDept, onSaved }) {
         </Select>
         <Textarea placeholder="Reason for referral" value={reason} onChange={(e) => setReason(e.target.value)} />
         <Button type="submit" disabled={saving}>{saving ? "Referring…" : "Refer patient"}</Button>
+        {error && <p className="text-xs text-alert bg-alert/5 border border-alert/20 rounded px-2 py-1">{error}</p>}
       </form>
     </Card>
   );
@@ -222,15 +238,24 @@ function PrescribePanel({ encounterId, onSaved }) {
   const [form, setForm] = useState({ drug_name: "", formulation: "", dose: "", route: "oral", frequency: "", duration: "" });
   const [alerts, setAlerts] = useState([]);
   const [saving, setSaving] = useState(false);
+  const [stockNames, setStockNames] = useState([]);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    api.get("/pharmacy/stock").then((res) => setStockNames(res.data.map((s) => s.drug_name))).catch(() => {});
+  }, []);
 
   async function submit(e) {
     e.preventDefault();
     setSaving(true);
+    setError("");
     try {
       const res = await api.post("/pharmacy/prescriptions", { encounter_id: Number(encounterId), ...form });
       setAlerts(res.data.cds_alerts_list || []);
       setForm({ drug_name: "", formulation: "", dose: "", route: "oral", frequency: "", duration: "" });
       onSaved();
+    } catch (err) {
+      setError(err.response?.data?.message || "Couldn't send the prescription — please try again.");
     } finally {
       setSaving(false);
     }
@@ -240,7 +265,12 @@ function PrescribePanel({ encounterId, onSaved }) {
     <Card>
       <p className="font-display text-lg mb-3">Prescribe medication</p>
       <form onSubmit={submit} className="grid md:grid-cols-3 gap-3">
-        <Field label="Drug name" required><Input value={form.drug_name} onChange={(e) => setForm({ ...form, drug_name: e.target.value })} /></Field>
+        <Field label="Drug name" required>
+          <Input list="stock-drug-names" value={form.drug_name} onChange={(e) => setForm({ ...form, drug_name: e.target.value })} placeholder="Start typing…" />
+          <datalist id="stock-drug-names">
+            {stockNames.map((n) => <option key={n} value={n} />)}
+          </datalist>
+        </Field>
         <Field label="Formulation"><Input value={form.formulation} onChange={(e) => setForm({ ...form, formulation: e.target.value })} placeholder="e.g. tablet 500mg" /></Field>
         <Field label="Dose"><Input value={form.dose} onChange={(e) => setForm({ ...form, dose: e.target.value })} /></Field>
         <Field label="Route">
@@ -253,6 +283,9 @@ function PrescribePanel({ encounterId, onSaved }) {
         <Field label="Duration"><Input value={form.duration} onChange={(e) => setForm({ ...form, duration: e.target.value })} placeholder="e.g. 5 days" /></Field>
         <Button type="submit" disabled={saving} className="md:col-span-3">{saving ? "Checking safety & sending…" : "Send prescription to pharmacy"}</Button>
       </form>
+      {error && (
+        <p className="mt-3 text-xs text-alert bg-alert/5 border border-alert/20 rounded px-2 py-1">{error}</p>
+      )}
       {alerts.length > 0 && (
         <div className="mt-3 space-y-1">
           {alerts.map((a, i) => (
@@ -266,19 +299,29 @@ function PrescribePanel({ encounterId, onSaved }) {
 
 const WARDS = ["Male General", "Female General", "Pediatric", "Maternity", "Surgical", "Isolation"];
 
-function DispositionPanel({ encounterId, onSaved, onClosed }) {
+// Wards restricted to one sex — must mirror SEX_RESTRICTED_WARDS in WardController.
+const SEX_RESTRICTED_WARDS = { "Male General": "male", "Female General": "female", Maternity: "female" };
+
+function wardsForPatient(sex) {
+  return WARDS.filter((w) => !SEX_RESTRICTED_WARDS[w] || !sex || SEX_RESTRICTED_WARDS[w] === sex);
+}
+
+function DispositionPanel({ encounterId, patientSex, onSaved, onClosed }) {
+  const availableWards = wardsForPatient(patientSex);
   const [outcome, setOutcome] = useState("discharged");
   const [notes, setNotes] = useState("");
-  const [ward, setWard] = useState(WARDS[0]);
+  const [ward, setWard] = useState(availableWards[0]);
   const [bed, setBed] = useState("");
   const [admissionDiagnosis, setAdmissionDiagnosis] = useState("");
   const [saving, setSaving] = useState(false);
   const [confirmDeath, setConfirmDeath] = useState(false);
+  const [error, setError] = useState("");
 
   async function submit(e) {
     e.preventDefault();
     if (outcome === "died" && !confirmDeath) return;
     setSaving(true);
+    setError("");
     try {
       if (outcome === "admitted") {
         await api.post("/wards/admit", { encounter_id: Number(encounterId), ward, bed, admission_diagnosis: admissionDiagnosis });
@@ -286,6 +329,8 @@ function DispositionPanel({ encounterId, onSaved, onClosed }) {
       await api.post(`/encounters/${encounterId}/close`, { outcome, disposition_notes: notes });
       onSaved();
       onClosed();
+    } catch (err) {
+      setError(err.response?.data?.message || "Couldn't record disposition — please try again.");
     } finally {
       setSaving(false);
     }
@@ -305,7 +350,7 @@ function DispositionPanel({ encounterId, onSaved, onClosed }) {
           <div className="space-y-3">
             <div className="grid grid-cols-2 gap-3">
               <Select value={ward} onChange={(e) => setWard(e.target.value)}>
-                {WARDS.map((w) => <option key={w} value={w}>{w}</option>)}
+                {availableWards.map((w) => <option key={w} value={w}>{w}</option>)}
               </Select>
               <Input placeholder="Bed number" value={bed} onChange={(e) => setBed(e.target.value)} />
             </div>
@@ -329,6 +374,7 @@ function DispositionPanel({ encounterId, onSaved, onClosed }) {
         >
           {saving ? "Saving…" : "Confirm disposition"}
         </Button>
+        {error && <p className="text-xs text-alert bg-alert/5 border border-alert/20 rounded px-2 py-1">{error}</p>}
       </form>
     </Card>
   );

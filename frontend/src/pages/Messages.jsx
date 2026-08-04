@@ -22,8 +22,12 @@ export default function Messages() {
   useEffect(() => { load(); }, [load]);
 
   async function markRead(id) {
-    await api.post(`/referrals/${id}/read`);
-    setMessages((list) => list.map((m) => (m.id === id ? { ...m, is_read: true } : m)));
+    try {
+      await api.post(`/referrals/${id}/read`);
+      setMessages((list) => list.map((m) => (m.id === id ? { ...m, is_read: true } : m)));
+    } catch {
+      // Non-critical UX action — leave the message unread in the UI so it's retried next time it's opened.
+    }
   }
 
   return (

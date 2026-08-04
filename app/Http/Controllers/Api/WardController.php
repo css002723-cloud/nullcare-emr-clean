@@ -18,9 +18,41 @@ class WardController extends Controller
 {
     private const WARDS = ['Male General', 'Female General', 'Pediatric', 'Maternity', 'ICU/HDU', 'Surgical', 'Isolation'];
 
+    /**
+     * Wards restricted to one sex. Wards not listed here (Pediatric,
+     * ICU/HDU, Surgical, Isolation) are treated as mixed/unrestricted.
+     */
+    private const SEX_RESTRICTED_WARDS = [
+        'Male General' => 'male',
+        'Female General' => 'female',
+        'Maternity' => 'female',
+    ];
+
     public function listWards()
     {
         return response()->json(self::WARDS);
+    }
+
+    /**
+     * Returns a message if placing this patient in $ward would violate a
+     * sex-restricted ward, or null if the placement is fine. We only block
+     * on a known mismatch — an unknown/unrecorded patient sex is allowed
+     * through rather than blocking care, since the ward assignment can
+     * always be corrected later.
+     */
+    private function wardSexConflict(?Patient $patient, ?string $ward): ?string
+    {
+        if (! $ward || ! isset(self::SEX_RESTRICTED_WARDS[$ward])) {
+            return null;
+        }
+
+        $requiredSex = self::SEX_RESTRICTED_WARDS[$ward];
+
+        if (! $patient || ! $patient->sex || $patient->sex === $requiredSex) {
+            return null;
+        }
+
+        return "{$ward} is a {$requiredSex}-only ward, but this patient is recorded as {$patient->sex}. Choose a different ward, or update the patient's sex if it was recorded incorrectly.";
     }
 
     /**
@@ -60,6 +92,11 @@ class WardController extends Controller
     public function admit(Request $request)
     {
         $encounter = Encounter::findOrFail($request->input('encounter_id'));
+        $patient = Patient::find($encounter->patient_id);
+
+        if ($conflict = $this->wardSexConflict($patient, $request->input('ward'))) {
+            return response()->json(['error' => 'ward_sex_mismatch', 'message' => $conflict], 422);
+        }
 
         $encounter->update([
             'stage' => 'admitted',
@@ -86,15 +123,20 @@ class WardController extends Controller
     {
         $encounter = Encounter::findOrFail($request->input('encounter_id'));
         $fromWard = $encounter->ward;
+        $targetWard = $request->input('ward', $encounter->ward);
+
+        if ($conflict = $this->wardSexConflict(Patient::find($encounter->patient_id), $targetWard)) {
+            return response()->json(['error' => 'ward_sex_mismatch', 'message' => $conflict], 422);
+        }
 
         $encounter->update([
-            'ward' => $request->input('ward', $encounter->ward),
+            'ward' => $targetWard,
             'bed' => $request->input('bed', $encounter->bed),
         ]);
 
         AuditLogger::log(
             $request->user(), 'transfer_patient', 'encounter', $encounter->id,
-            "from={$fromWard} to={$request->input('ward')}"
+            "from={$fromWard} to={$targetWard}"
         );
 
         return response()->json($encounter);

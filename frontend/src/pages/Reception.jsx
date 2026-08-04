@@ -927,6 +927,9 @@ function QueuePanel() {
   const [loading, setLoading] =
     useState(true);
 
+  const [actionError, setActionError] =
+    useState("");
+
   const load = useCallback(async () => {
     setLoading(true);
 
@@ -1001,12 +1004,16 @@ function QueuePanel() {
     encounterId,
     priority
   ) {
-    await api.post(
-      `/encounters/${encounterId}/transition`,
-      { priority }
-    );
-
-    load();
+    setActionError("");
+    try {
+      await api.post(
+        `/encounters/${encounterId}/transition`,
+        { priority }
+      );
+      load();
+    } catch (err) {
+      setActionError(err.response?.data?.message || "Couldn't update priority — please try again. Don't assume the change went through.");
+    }
   }
 
   async function cancelEntry(
@@ -1020,16 +1027,20 @@ function QueuePanel() {
       return;
     }
 
-    await api.post(
-      `/encounters/${encounterId}/close`,
-      {
-        outcome: "cancelled",
-        disposition_notes:
-          "Cancelled from reception queue",
-      }
-    );
-
-    load();
+    setActionError("");
+    try {
+      await api.post(
+        `/encounters/${encounterId}/close`,
+        {
+          outcome: "cancelled",
+          disposition_notes:
+            "Cancelled from reception queue",
+        }
+      );
+      load();
+    } catch (err) {
+      setActionError(err.response?.data?.message || "Couldn't cancel this entry — please try again.");
+    }
   }
 
   return (
@@ -1043,6 +1054,10 @@ function QueuePanel() {
           {encounters.length} waiting
         </Badge>
       </div>
+
+      {actionError && (
+        <p className="mb-3 text-xs text-alert bg-alert/5 border border-alert/20 rounded px-2 py-1">{actionError}</p>
+      )}
 
       {loading ? (
         <LoadingRow />

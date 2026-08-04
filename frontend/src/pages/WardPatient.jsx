@@ -10,6 +10,13 @@ import { useAuth } from "../context/AuthContext";
 
 const WARDS = ["Male General", "Female General", "Pediatric", "Maternity", "ICU/HDU", "Surgical", "Isolation"];
 
+// Wards restricted to one sex — must mirror SEX_RESTRICTED_WARDS in WardController.
+const SEX_RESTRICTED_WARDS = { "Male General": "male", "Female General": "female", Maternity: "female" };
+
+function wardsForPatient(sex) {
+  return WARDS.filter((w) => !SEX_RESTRICTED_WARDS[w] || !sex || SEX_RESTRICTED_WARDS[w] === sex);
+}
+
 export default function WardPatient() {
   const { encounterId } = useParams();
   const navigate = useNavigate();
@@ -62,7 +69,7 @@ export default function WardPatient() {
         </div>
       </Card>
 
-      {hasRole("doctor", "nurse") && <TransferPanel encounterId={encounterId} currentWard={data.ward} currentBed={data.bed} onSaved={() => { load(); flash("Patient transferred"); }} />}
+      {hasRole("doctor", "nurse") && <TransferPanel encounterId={encounterId} currentWard={data.ward} currentBed={data.bed} patientSex={data.patient?.sex} onSaved={() => { load(); flash("Patient transferred"); }} />}
 
       <Card>
         <p className="font-display text-lg mb-3">Observation chart</p>
@@ -106,17 +113,22 @@ export default function WardPatient() {
   );
 }
 
-function TransferPanel({ encounterId, currentWard, currentBed, onSaved }) {
-  const [ward, setWard] = useState(currentWard || WARDS[0]);
+function TransferPanel({ encounterId, currentWard, currentBed, patientSex, onSaved }) {
+  const availableWards = wardsForPatient(patientSex);
+  const [ward, setWard] = useState(availableWards.includes(currentWard) ? currentWard : availableWards[0]);
   const [bed, setBed] = useState(currentBed || "");
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
 
   async function submit(e) {
     e.preventDefault();
     setSaving(true);
+    setError("");
     try {
       await api.post("/wards/transfer", { encounter_id: Number(encounterId), ward, bed });
       onSaved();
+    } catch (err) {
+      setError(err.response?.data?.message || "Couldn't transfer the patient — please try again.");
     } finally {
       setSaving(false);
     }
@@ -127,11 +139,15 @@ function TransferPanel({ encounterId, currentWard, currentBed, onSaved }) {
       <p className="font-display text-lg mb-3 flex items-center gap-2"><ArrowRightLeft size={17} /> Transfer ward or bed</p>
       <form onSubmit={submit} className="flex flex-wrap gap-3 items-end">
         <Select value={ward} onChange={(e) => setWard(e.target.value)} className="max-w-xs">
-          {WARDS.map((w) => <option key={w} value={w}>{w}</option>)}
+          {availableWards.map((w) => <option key={w} value={w}>{w}</option>)}
         </Select>
         <Input placeholder="Bed number" value={bed} onChange={(e) => setBed(e.target.value)} className="max-w-[140px]" />
         <Button type="submit" size="sm" disabled={saving}>{saving ? "Transferring…" : "Transfer"}</Button>
       </form>
+      {!patientSex && (
+        <p className="text-xs text-ink/40 mt-2">Patient's sex isn't recorded, so all wards are shown — double-check before placing on a sex-specific ward.</p>
+      )}
+      {error && <p className="mt-2 text-xs text-alert bg-alert/5 border border-alert/20 rounded px-2 py-1">{error}</p>}
     </Card>
   );
 }
@@ -141,6 +157,7 @@ function FluidBalancePanel({ encounterId, onSaved }) {
   const [totals, setTotals] = useState(null);
   const [entries, setEntries] = useState([]);
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
 
   const load = useCallback(async () => {
     try {
@@ -156,11 +173,14 @@ function FluidBalancePanel({ encounterId, onSaved }) {
     e.preventDefault();
     if (!form.volume_ml) return;
     setSaving(true);
+    setError("");
     try {
       await api.post("/wards/fluid-balance", { encounter_id: Number(encounterId), ...form, volume_ml: Number(form.volume_ml) });
       setForm({ direction: "intake", category: "oral", volume_ml: "", notes: "" });
       load();
       onSaved();
+    } catch (err) {
+      setError(err.response?.data?.message || "Couldn't save the entry — please try again.");
     } finally {
       setSaving(false);
     }
@@ -202,6 +222,7 @@ function FluidBalancePanel({ encounterId, onSaved }) {
         <Input placeholder="Notes (optional)" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
         <Button type="submit" size="sm" disabled={saving} className="col-span-2">{saving ? "Saving…" : "Add entry"}</Button>
       </form>
+      {error && <p className="mb-3 text-xs text-alert bg-alert/5 border border-alert/20 rounded px-2 py-1">{error}</p>}
       {entries.length > 0 && (
         <ul className="text-xs text-ink/60 space-y-1">
           {entries.map((e) => (
@@ -247,16 +268,20 @@ function MARRow({ rx, canAdminister, expanded, onToggle, onSaved }) {
   const [doseGiven, setDoseGiven] = useState(rx.dose || "");
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
   const administrations = rx.administrations || [];
 
   async function administer(e) {
     e.preventDefault();
     setSaving(true);
+    setError("");
     try {
       await api.post(`/pharmacy/prescriptions/${rx.id}/administer`, { dose_given: doseGiven, notes });
       setShowForm(false);
       setNotes("");
       onSaved();
+    } catch (err) {
+      setError(err.response?.data?.message || "Couldn't record administration — please try again.");
     } finally {
       setSaving(false);
     }
@@ -291,6 +316,7 @@ function MARRow({ rx, canAdminister, expanded, onToggle, onSaved }) {
           <Button type="submit" size="sm" disabled={saving} className="col-span-2">
             {saving ? "Recording…" : "Confirm administration"}
           </Button>
+          {error && <p className="col-span-2 text-xs text-alert bg-alert/5 border border-alert/20 rounded px-2 py-1">{error}</p>}
         </form>
       )}
 
@@ -322,14 +348,18 @@ function DischargePanel({ encounterId, onDone }) {
   const [notes, setNotes] = useState("");
   const [confirmDeath, setConfirmDeath] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
 
   async function submit(e) {
     e.preventDefault();
     if (outcome === "died" && !confirmDeath) return;
     setSaving(true);
+    setError("");
     try {
       await api.post(`/encounters/${encounterId}/close`, { outcome, disposition_notes: notes });
       onDone();
+    } catch (err) {
+      setError(err.response?.data?.message || "Couldn't complete discharge — please try again.");
     } finally {
       setSaving(false);
     }
@@ -354,6 +384,7 @@ function DischargePanel({ encounterId, onDone }) {
         <Button type="submit" variant={outcome === "died" ? "danger" : "primary"} disabled={saving || (outcome === "died" && !confirmDeath)}>
           {saving ? "Saving…" : "Confirm discharge"}
         </Button>
+        {error && <p className="text-xs text-alert bg-alert/5 border border-alert/20 rounded px-2 py-1">{error}</p>}
       </form>
     </Card>
   );

@@ -100,22 +100,30 @@ function ImagingRow({ order, canReport, canReview, onSaved }) {
   const [showReport, setShowReport] = useState(false);
   const [report, setReport] = useState({ findings: "", impression: "", is_critical_finding: false });
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
 
   async function submitReport(e) {
     e.preventDefault();
     setSaving(true);
+    setError("");
     try {
       await api.post(`/imaging/orders/${order.id}/report`, report);
       setShowReport(false);
       onSaved();
+    } catch (err) {
+      setError(err.response?.data?.message || "Couldn't save the report — please try again.");
     } finally {
       setSaving(false);
     }
   }
 
   async function reviewReport() {
-    await api.post(`/imaging/reports/${order.report.id}/review`);
-    onSaved();
+    try {
+      await api.post(`/imaging/reports/${order.report.id}/review`);
+      onSaved();
+    } catch {
+      setError("Couldn't mark the report reviewed — please try again.");
+    }
   }
 
   return (
@@ -157,6 +165,7 @@ function ImagingRow({ order, canReport, canReview, onSaved }) {
           <Button type="submit" disabled={saving}>{saving ? "Saving…" : "Submit report"}</Button>
         </form>
       )}
+      {error && <p className="mt-2 text-xs text-alert bg-alert/5 border border-alert/20 rounded px-2 py-1">{error}</p>}
     </Card>
   );
 }
