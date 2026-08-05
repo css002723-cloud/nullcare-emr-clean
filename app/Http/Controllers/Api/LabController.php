@@ -183,9 +183,38 @@ class LabController extends Controller
 
     /**
      * GET /api/lab/critical-unacknowledged
+     * Return enriched payload including the lab order and patient info so UI can link.
      */
     public function criticalUnacknowledged()
     {
-        return response()->json(LabResult::where('is_critical', true)->where('critical_alert_acknowledged', false)->get());
+        $results = LabResult::where('is_critical', true)
+            ->where('critical_alert_acknowledged', false)
+            ->with('labOrder.patient')
+            ->get()
+            ->map(function (LabResult $r) {
+                $lo = $r->labOrder;
+                return [
+                    'id' => $r->id,
+                    'lab_order_id' => $r->lab_order_id,
+                    'result_value' => $r->result_value,
+                    'unit' => $r->unit,
+                    'reference_range' => $r->reference_range,
+                    'interpretation' => $r->interpretation,
+                    'is_critical' => (bool) $r->is_critical,
+                    'critical_alert_acknowledged' => (bool) $r->critical_alert_acknowledged,
+                    'entered_by' => $r->entered_by,
+                    'lab_order' => $lo ? [
+                        'id' => $lo->id,
+                        'encounter_id' => $lo->encounter_id,
+                        'patient_id' => $lo->patient_id,
+                        'loinc_display' => $lo->loinc_display,
+                        'test_code' => $lo->test_code,
+                        'barcode' => $lo->barcode,
+                    ] : null,
+                    'patient_name' => $lo?->patient?->full_name,
+                ];
+            });
+
+        return response()->json($results);
     }
 }
