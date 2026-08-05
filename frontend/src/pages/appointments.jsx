@@ -14,6 +14,7 @@ import { Badge, Button, Card, Field, Input, Select, Textarea } from "../componen
 import PageHeader from "../components/PageHeader";
 import PatientLookup from "../components/PatientLookup";
 import { useAuth } from "../context/AuthContext";
+import { useMyAppointments } from "../hooks/useMyAppointments";
 import api from "../services/api";
 
 const initialForm = {
@@ -49,8 +50,9 @@ function badgeLabel(status) {
 }
 
 export default function Appointments() {
-  const { hasRole } = useAuth();
+  const { hasRole, user } = useAuth();
   const navigate = useNavigate();
+  const { refresh: refreshBadge } = useMyAppointments();
   const [appointments, setAppointments] = useState([]);
   const [doctors, setDoctors] = useState([]);
   const [form, setForm] = useState(initialForm);
@@ -62,16 +64,21 @@ export default function Appointments() {
   const [busyId, setBusyId] = useState(null);
 
   const canBook = hasRole("reception", "nurse", "admin");
+  const isDoctor = user?.role === "doctor";
+  // Doctors land on their own schedule by default — the shared queue for
+  // everyone else stays as-is. "Show all" just widens the same query.
+  const [scopeMine, setScopeMine] = useState(isDoctor);
 
   useEffect(() => {
     loadAppointments();
     api.get("/appointments/doctors").then((res) => setDoctors(res.data)).catch(() => setDoctors([]));
-  }, []);
+  }, [scopeMine]);
 
   async function loadAppointments() {
     setLoading(true);
     try {
-      const { data } = await api.get("/appointments");
+      const params = isDoctor && scopeMine ? { doctor_id: user.id } : {};
+      const { data } = await api.get("/appointments", { params });
       setAppointments(data);
     } catch {
       setError("Unable to load appointments right now.");
@@ -133,6 +140,7 @@ export default function Appointments() {
       const { data } = await api.put(`/appointments/${id}/status`, { status });
       setAppointments((current) => current.map((a) => (a.id === id ? data : a)));
       setMessage(status === "missed" ? "Appointment marked as missed." : `Appointment marked as ${status}.`);
+      refreshBadge();
     } catch (err) {
       setError(err.response?.data?.message || "Unable to update the appointment — the change was NOT saved, please retry.");
     } finally {
@@ -146,6 +154,7 @@ export default function Appointments() {
       const { data } = await api.post(`/appointments/${id}/check-in`);
       setAppointments((current) => current.map((a) => (a.id === id ? data.appointment : a)));
       setMessage("Patient checked in — sending them straight to triage.");
+      refreshBadge();
       navigate(`/encounters/${data.encounter.id}`);
     } catch (err) {
       setError(err.response?.data?.message || "Couldn't check this patient in — please try again.");
@@ -287,29 +296,60 @@ export default function Appointments() {
       <Card>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <p className="font-display text-xl">Appointment list</p>
-            <p className="text-sm text-ink/50">Review the current queue, check patients in, and update visit outcomes.</p>
+            <p className="font-display text-xl">
+              {isDoctor && scopeMine ? "My appointments" : "Appointment list"}
+            </p>
+            <p className="text-sm text-ink/50">
+              {isDoctor && scopeMine
+                ? "Only your assigned appointments. Reception checks patients in when they arrive."
+                : "Review the current queue, check patients in, and update visit outcomes."}
+            </p>
           </div>
 
-          <div className="flex flex-wrap gap-2">
-            {[
-              { value: "all", label: "All" },
-              { value: "scheduled", label: "Scheduled" },
-              { value: "checked_in", label: "Checked in" },
-              { value: "missed", label: "Missed" },
-              { value: "completed", label: "Completed" },
-            ].map((option) => (
-              <button
-                key={option.value}
-                type="button"
-                onClick={() => setFilter(option.value)}
-                className={`rounded-full px-3 py-1.5 text-sm font-medium transition-colors ${
-                  filter === option.value ? "bg-teal-500 text-white" : "bg-surface-alt text-ink/60"
-                }`}
-              >
-                {option.label}
-              </button>
-            ))}
+          <div className="flex flex-wrap items-center gap-3">
+            {isDoctor && (
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setScopeMine(true)}
+                  className={`rounded-full px-3 py-1.5 text-sm font-medium transition-colors ${
+                    scopeMine ? "bg-teal-700 text-white" : "bg-surface-alt text-ink/60"
+                  }`}
+                >
+                  My schedule
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setScopeMine(false)}
+                  className={`rounded-full px-3 py-1.5 text-sm font-medium transition-colors ${
+                    !scopeMine ? "bg-teal-700 text-white" : "bg-surface-alt text-ink/60"
+                  }`}
+                >
+                  All appointments
+                </button>
+              </div>
+            )}
+
+            <div className="flex flex-wrap gap-2">
+              {[
+                { value: "all", label: "All" },
+                { value: "scheduled", label: "Scheduled" },
+                { value: "checked_in", label: "Checked in" },
+                { value: "missed", label: "Missed" },
+                { value: "completed", label: "Completed" },
+              ].map((option) => (
+                <button
+                  key={option.value}
+                  type="button"
+                  onClick={() => setFilter(option.value)}
+                  className={`rounded-full px-3 py-1.5 text-sm font-medium transition-colors ${
+                    filter === option.value ? "bg-teal-500 text-white" : "bg-surface-alt text-ink/60"
+                  }`}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
           </div>
         </div>
 
@@ -352,7 +392,7 @@ export default function Appointments() {
                   </div>
                 </div>
 
-                <div className="mt-4 flex flex-wrap gap-2">
+                <div className="mt-4 flex flex-wrap items-center gap-2">
                   {a.status === "scheduled" && canBook && (
                     <>
                       <Button type="button" size="sm" icon={LogIn} disabled={busyId === a.id} onClick={() => checkIn(a.id)}>
@@ -366,15 +406,40 @@ export default function Appointments() {
                       </Button>
                     </>
                   )}
+
+                  {a.status === "scheduled" && !canBook && isDoctor && a.doctor_id === user.id && (
+                    <>
+                      <span className="text-xs text-ink/50">Waiting for reception to check the patient in.</span>
+                      <Button type="button" variant="clay" size="sm" icon={AlertTriangle} disabled={busyId === a.id} onClick={() => updateStatus(a.id, "missed")}>
+                        {busyId === a.id ? "Marking…" : "Mark missed"}
+                      </Button>
+                    </>
+                  )}
+
+                  {a.status === "scheduled" && !canBook && (!isDoctor || a.doctor_id !== user.id) && (
+                    <span className="text-xs text-ink/50">Scheduled — reception will check the patient in on arrival.</span>
+                  )}
+
                   {a.status === "checked_in" && a.encounter_id && (
                     <Button type="button" variant="secondary" size="sm" icon={LogIn} onClick={() => navigate(`/encounters/${a.encounter_id}`)}>
                       Open visit
                     </Button>
                   )}
+
                   {a.status === "missed" && canBook && (
                     <Button type="button" variant="secondary" size="sm" icon={CheckCircle2} disabled={busyId === a.id} onClick={() => updateStatus(a.id, "completed")}>
                       Mark completed
                     </Button>
+                  )}
+                  {a.status === "missed" && !canBook && (
+                    <span className="text-xs text-ink/50">Marked missed — reception can reschedule or mark it completed if the patient still comes in.</span>
+                  )}
+
+                  {a.status === "completed" && (
+                    <span className="text-xs text-ink/50">Visit complete.</span>
+                  )}
+                  {a.status === "cancelled" && (
+                    <span className="text-xs text-ink/50">Cancelled.</span>
                   )}
                 </div>
               </div>

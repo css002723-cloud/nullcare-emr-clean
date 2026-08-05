@@ -8,6 +8,7 @@ import {
 import { useAuth } from "../context/AuthContext";
 import { useTheme } from "../context/ThemeContext";
 import { useUnreadMessages } from "../hooks/useUnreadMessages";
+import { useMyAppointments } from "../hooks/useMyAppointments";
 
 const NAV_BY_ROLE = {
   admin: [
@@ -87,13 +88,14 @@ export default function Sidebar({ open, onClose }) {
   const { user, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const { unreadCount } = useUnreadMessages();
+  const { scheduledCount } = useMyAppointments();
   const roleItems = NAV_BY_ROLE[user?.role] || [];
 
   const items = [
     ...roleItems.slice(0, 1),
     { to: "/messages", label: "Messages", icon: MessageSquareText, badge: unreadCount },
     ...roleItems.slice(1),
-  ];
+  ].map((item) => (item.to === "/appointments" ? { ...item, badge: scheduledCount } : item));
 
   return (
     <>

@@ -48,7 +48,9 @@ Route::middleware('auth:sanctum')->group(function () {
         Route::post('/appointments', [AppointmentController::class, 'store']);
         Route::post('/appointments/{appointment}/check-in', [AppointmentController::class, 'checkIn']);
     });
-    Route::put('/appointments/{appointment}/status', [AppointmentController::class, 'updateStatus']);
+    Route::middleware('role:reception,nurse,doctor,admin')->group(function () {
+        Route::put('/appointments/{appointment}/status', [AppointmentController::class, 'updateStatus']);
+    });
 
     // ---- Patients ----
     Route::middleware('role:reception,nurse,doctor,admin')->group(function () {

@@ -102,12 +102,27 @@ class AppointmentController extends Controller
      * Body: { status: scheduled|completed|missed|cancelled }
      * (checked_in is set only via checkIn() below, not through this endpoint,
      * since it must always come with a real linked encounter.)
+     *
+     * A doctor may only act on their own assigned appointments, and only
+     * to flag one as missed — "the patient never showed for their slot"
+     * is a call only the attending doctor can make in the moment.
+     * Rescheduling, cancelling, or completing a booking stays a front-desk
+     * scheduling action, done by reception/nurse/admin.
      */
     public function updateStatus(Request $request, Appointment $appointment)
     {
         $status = $request->input('status');
         if (! in_array($status, ['scheduled', 'completed', 'missed', 'cancelled'], true)) {
             return response()->json(['message' => 'Invalid status.'], 422);
+        }
+
+        if ($request->user()->role === 'doctor') {
+            if ($appointment->doctor_id !== $request->user()->id) {
+                return response()->json(['message' => "This appointment isn't assigned to you."], 403);
+            }
+            if ($status !== 'missed') {
+                return response()->json(['message' => 'You can mark your own appointments as missed; other changes go through reception.'], 403);
+            }
         }
 
         $appointment->update(['status' => $status]);
