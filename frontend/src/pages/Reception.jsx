@@ -515,8 +515,7 @@ function NewPatientPanel() {
         onChange={(val) => update("consent_research", val)}
       />
 
-      {/* Encounter / Visit Details */}
-      <VisitDetailsCard form={form} update={update} />
+      {/* Encounter / Visit Details removed for new patient registration per UX request */}
 
       {error && (
         <div className="p-3 rounded-lg bg-red-50 text-red-600 border border-red-200 text-sm flex items-center gap-2 w-full">

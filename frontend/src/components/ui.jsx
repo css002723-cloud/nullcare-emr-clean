@@ -39,7 +39,7 @@ export function Button({ children, variant = "primary", size = "md", icon: Icon,
 
 export function Card({ children, className = "", ...props }) {
   return (
-    <div className={`bg-surface rounded-2xl border border-line shadow-card transition-colors duration-200 p-5 ${className}`} {...props}>
+    <div className={`w-full bg-surface rounded-2xl border border-line shadow-card transition-colors duration-200 p-5 ${className}`} {...props}>
       {children}
     </div>
   );
