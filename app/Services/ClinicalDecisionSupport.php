@@ -6,25 +6,35 @@ use App\Models\Patient;
 use Illuminate\Support\Collection;
 
 /**
- * Ported directly from backend/app/utils.py's check_prescription_safety()
- * and compute_early_warning_score() — same rule set, same thresholds,
- * same alert wording. This is a prototype rule engine on both sides of
- * the merge; a production system would call a maintained drug
- * interaction/allergy database instead.
+ * Clinical decision support service.
+ *
+ * This class now reads tunable lists and thresholds from config/cds.php so
+ * behaviour can be adjusted per-site without changing code. Defaults are
+ * kept to preserve current behaviour.
  */
 class ClinicalDecisionSupport
 {
-    private const PEDIATRIC_MAX_DOSES = [
-        'paracetamol' => '15mg/kg/dose (max 60mg/kg/day)',
-        'amoxicillin' => '25-50mg/kg/day divided',
-    ];
+    private function pediatricMaxDoses(): array
+    {
+        return config('cds.pediatric_max_doses', [
+            'paracetamol' => '15mg/kg/dose (max 60mg/kg/day)',
+            'amoxicillin' => '25-50mg/kg/day divided',
+        ]);
+    }
 
-    private const RENAL_ADJUST_DRUGS = ['metformin', 'gentamicin', 'nsaids', 'ibuprofen'];
-    private const PREGNANCY_CAUTION_DRUGS = ['warfarin', 'ace inhibitors', 'lisinopril', 'isotretinoin', 'methotrexate'];
+    private function renalAdjustDrugs(): array
+    {
+        return config('cds.renal_adjust_drugs', ['metformin', 'gentamicin', 'nsaids', 'ibuprofen']);
+    }
+
+    private function pregnancyCautionDrugs(): array
+    {
+        return config('cds.pregnancy_caution_drugs', ['warfarin', 'ace inhibitors', 'lisinopril', 'isotretinoin', 'methotrexate']);
+    }
 
     /**
-     * @param  Collection  $activeAllergies  Allergy models for this patient
-     * @param  Collection  $currentPrescriptions  Prescription models for this encounter
+     * @param  Collection  $activeAllergies
+     * @param  Collection  $currentPrescriptions
      * @return string[] CDS alert strings
      */
     public function checkPrescriptionSafety(string $drugName, Patient $patient, Collection $activeAllergies, Collection $currentPrescriptions): array
@@ -48,11 +58,11 @@ class ClinicalDecisionSupport
         }
 
         if ($patient->isPediatric()) {
-            $hint = self::PEDIATRIC_MAX_DOSES[$drugLower] ?? null;
+            $hint = $this->pediatricMaxDoses()[strtolower($drugName)] ?? null;
             $alerts[] = 'PEDIATRIC DOSING: verify weight-based dose.'.($hint ? " Reference: {$hint}" : '');
         }
 
-        foreach (self::RENAL_ADJUST_DRUGS as $renalDrug) {
+        foreach ($this->renalAdjustDrugs() as $renalDrug) {
             if (str_contains($drugLower, $renalDrug)) {
                 $alerts[] = "RENAL CAUTION: {$drugName} may require dose adjustment in renal impairment — check renal profile.";
                 break;
@@ -60,7 +70,7 @@ class ClinicalDecisionSupport
         }
 
         if ($patient->sex === 'female') {
-            foreach (self::PREGNANCY_CAUTION_DRUGS as $cautionDrug) {
+            foreach ($this->pregnancyCautionDrugs() as $cautionDrug) {
                 if (str_contains($drugLower, $cautionDrug)) {
                     $alerts[] = "PREGNANCY CAUTION: {$drugName} carries pregnancy-related risk — confirm pregnancy status.";
                     break;
@@ -81,54 +91,75 @@ class ClinicalDecisionSupport
         $score = 0;
         $flags = [];
 
+        $ews = config('cds.ews', [
+            'rr_critical_low' => 8,
+            'rr_critical_high' => 25,
+            'rr_high' => 21,
+
+            'spo2_crit' => 92,
+            'spo2_low' => 94,
+
+            'hr_crit_low' => 40,
+            'hr_crit_high' => 131,
+            'hr_high' => 111,
+
+            'sbp_crit_low' => 90,
+            'sbp_crit_high' => 220,
+
+            'temp_low' => 35.0,
+            'temp_high' => 39.1,
+
+            'gcs_normal' => 15,
+        ]);
+
         if (($rr = $vitals['respiratory_rate'] ?? null) !== null) {
-            if ($rr <= 8 || $rr >= 25) {
+            if ($rr <= $ews['rr_critical_low'] || $rr >= $ews['rr_critical_high']) {
                 $score += 3;
                 $flags[] = 'Respiratory rate critical';
-            } elseif ($rr >= 21) {
+            } elseif ($rr >= $ews['rr_high']) {
                 $score += 2;
                 $flags[] = 'Respiratory rate high';
             }
         }
 
         if (($spo2 = $vitals['spo2'] ?? null) !== null) {
-            if ($spo2 < 92) {
+            if ($spo2 < $ews['spo2_crit']) {
                 $score += 3;
                 $flags[] = 'Oxygen saturation critically low';
-            } elseif ($spo2 < 94) {
+            } elseif ($spo2 < $ews['spo2_low']) {
                 $score += 1;
                 $flags[] = 'Oxygen saturation low';
             }
         }
 
         if (($hr = $vitals['pulse_rate'] ?? null) !== null) {
-            if ($hr <= 40 || $hr >= 131) {
+            if ($hr <= $ews['hr_crit_low'] || $hr >= $ews['hr_crit_high']) {
                 $score += 3;
                 $flags[] = 'Heart rate critical';
-            } elseif ($hr >= 111) {
+            } elseif ($hr >= $ews['hr_high']) {
                 $score += 2;
                 $flags[] = 'Heart rate high';
             }
         }
 
         if (($sbp = $vitals['blood_pressure_systolic'] ?? null) !== null) {
-            if ($sbp <= 90) {
+            if ($sbp <= $ews['sbp_crit_low']) {
                 $score += 3;
                 $flags[] = 'Systolic BP critically low';
-            } elseif ($sbp >= 220) {
+            } elseif ($sbp >= $ews['sbp_crit_high']) {
                 $score += 3;
                 $flags[] = 'Systolic BP critically high';
             }
         }
 
         if (($temp = $vitals['temperature_c'] ?? null) !== null) {
-            if ($temp <= 35.0 || $temp >= 39.1) {
+            if ($temp <= $ews['temp_low'] || $temp >= $ews['temp_high']) {
                 $score += 2;
                 $flags[] = 'Temperature abnormal';
             }
         }
 
-        if (($gcs = $vitals['gcs'] ?? null) !== null && $gcs < 15) {
+        if (($gcs = $vitals['gcs'] ?? null) !== null && $gcs < $ews['gcs_normal']) {
             $score += 3;
             $flags[] = 'Reduced consciousness (GCS < 15)';
         }
