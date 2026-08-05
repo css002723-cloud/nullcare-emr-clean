@@ -13,13 +13,15 @@ import PageHeader from "../components/PageHeader";
 import api from "../services/api";
 
 const initialForm = {
-  patient_name: "",
+  patient_first_name: "",
+  patient_last_name: "",
   phone: "",
   department: "General Clinic",
   date: "",
   time: "",
   reason: "",
   priority: "routine",
+  consent_research: false,
 };
 
 function isPastAppointment(date, time) {
@@ -52,6 +54,11 @@ function badgeLabel(status) {
   if (status === "completed") return "Completed";
   if (status === "missed") return "Missed";
   return "Scheduled";
+}
+
+function patientFullName(appointment) {
+  if (appointment.patient_name) return appointment.patient_name;
+  return [appointment.patient_first_name, appointment.patient_last_name].filter(Boolean).join(" ") || "Unnamed patient";
 }
 
 export default function Appointments() {
@@ -98,25 +105,28 @@ export default function Appointments() {
     event.preventDefault();
     setMessage("");
 
-    if (!form.patient_name.trim() || !form.date || !form.time || !form.department) {
-      setMessage("Please complete the patient, date, time, and department fields.");
+    if (!form.patient_first_name.trim() || !form.patient_last_name.trim() || !form.date || !form.time || !form.department) {
+      setMessage("Please complete the patient's first name, last name, date, time, and department.");
       return;
     }
 
     try {
       const { data } = await api.post("/appointments", {
-        patient_name: form.patient_name.trim(),
+        patient_first_name: form.patient_first_name.trim(),
+        patient_last_name: form.patient_last_name.trim(),
+        patient_name: `${form.patient_first_name.trim()} ${form.patient_last_name.trim()}`,
         phone: form.phone.trim(),
         department: form.department,
         appointment_date: form.date,
         appointment_time: form.time,
         reason: form.reason.trim(),
         priority: form.priority,
+        consent_research: form.consent_research,
       });
 
       setAppointments((current) => [data, ...current]);
       setForm(initialForm);
-      setMessage(`Appointment booked for ${data.patient_name}.`);
+      setMessage(`Appointment booked for ${data.patient_name || `${form.patient_first_name} ${form.patient_last_name}`}.`);
     } catch (error) {
       console.error(error);
       setMessage(error.response?.data?.message || "Unable to book the appointment.");
@@ -172,13 +182,23 @@ export default function Appointments() {
 
           <form className="space-y-4" onSubmit={handleSubmit}>
             <div className="grid gap-4 md:grid-cols-2">
-              <Field label="Patient name" required>
+              <Field label="First name" required>
                 <Input
-                  value={form.patient_name}
-                  onChange={(event) => updateField("patient_name", event.target.value)}
-                  placeholder="e.g. Mercy Banda"
+                  value={form.patient_first_name}
+                  onChange={(event) => updateField("patient_first_name", event.target.value)}
+                  placeholder="e.g. Mercy"
                 />
               </Field>
+              <Field label="Last name" required>
+                <Input
+                  value={form.patient_last_name}
+                  onChange={(event) => updateField("patient_last_name", event.target.value)}
+                  placeholder="e.g. Banda"
+                />
+              </Field>
+            </div>
+
+            <div className="grid gap-4 md:grid-cols-2">
               <Field label="Phone number">
                 <Input
                   value={form.phone}
@@ -233,6 +253,21 @@ export default function Appointments() {
                 onChange={(event) => updateField("reason", event.target.value)}
                 placeholder="Describe the reason for the visit"
               />
+            </Field>
+
+            <Field label="Research consent">
+              <div className="flex items-center gap-3">
+                <input
+                  id="consent_research"
+                  type="checkbox"
+                  checked={form.consent_research}
+                  onChange={(event) => updateField("consent_research", event.target.checked)}
+                  className="h-4 w-4 rounded border-line bg-surface text-teal-600 focus:ring-teal-500"
+                />
+                <label htmlFor="consent_research" className="text-sm text-ink/70">
+                  Patient consents to research use of their data.
+                </label>
+              </div>
             </Field>
 
             <Button type="submit" icon={CalendarDays}>
@@ -327,9 +362,14 @@ export default function Appointments() {
                   <div>
                     <div className="flex items-center gap-2">
                       <UserRound size={16} className="text-teal-500" />
-                      <p className="font-semibold text-ink">{appointment.patient_name}</p>
+                      <p className="font-semibold text-ink">{patientFullName(appointment)}</p>
                     </div>
                     <p className="mt-1 text-sm text-ink/60">{appointment.reason || "No reason provided yet."}</p>
+                    {appointment.consent_research != null && (
+                      <p className="mt-1 text-xs text-ink/60">
+                        Research consent: {appointment.consent_research ? "Given" : "Not given"}
+                      </p>
+                    )}
                   </div>
                   <Badge tone={badgeTone(appointment.status)}>{badgeLabel(appointment.status)}</Badge>
                 </div>
