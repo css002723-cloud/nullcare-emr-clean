@@ -42,7 +42,7 @@ export default function AppLayout({ children }) {
         </header>
 
         <SyncStatusBar />
-        <main id="main-content" className="px-4 sm:px-6 md:px-8 py-5 md:py-8 max-w-6xl mx-auto">
+        <main id="main-content" className="px-4 sm:px-6 md:px-8 py-5 md:py-8 max-w-none mx-auto w-full">
           {children}
         </main>
       </div>
