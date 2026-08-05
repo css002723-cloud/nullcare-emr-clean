@@ -23,14 +23,14 @@ class DashboardController extends Controller
         'nurse' => [
             'total_patients', 'active_encounters', 'admitted_patients', 'today_registrations',
             'department_queue_counts', 'pending_lab_orders', 'critical_results_unacknowledged',
-            'priority_breakdown', 'visits_last_7_days',
+            'critical_results_unacknowledged_patients', 'priority_breakdown', 'visits_last_7_days',
         ],
         'doctor' => [
             'total_patients', 'active_encounters', 'admitted_patients', 'today_registrations',
             'department_queue_counts', 'pending_lab_orders', 'critical_results_unacknowledged',
-            'priority_breakdown', 'visits_last_7_days',
+            'critical_results_unacknowledged_patients', 'priority_breakdown', 'visits_last_7_days',
         ],
-        'lab_tech' => ['pending_lab_orders', 'critical_results_unacknowledged'],
+        'lab_tech' => ['pending_lab_orders', 'critical_results_unacknowledged', 'critical_results_unacknowledged_patients'],
         'radiologist' => ['pending_lab_orders'],
         'pharmacist' => ['low_stock_drug_count'],
         'billing' => ['outstanding_billing_total', 'today_registrations'],
@@ -82,7 +82,22 @@ class DashboardController extends Controller
         }
 
         $pendingLab = LabOrder::whereIn('status', ['ordered', 'collected', 'received'])->count();
-        $criticalUnack = LabResult::where('is_critical', true)->where('critical_alert_acknowledged', false)->count();
+        $criticalLabResults = LabResult::where('is_critical', true)
+            ->where('critical_alert_acknowledged', false)
+            ->with('labOrder.patient')
+            ->get();
+
+        $criticalUnack = $criticalLabResults->count();
+        $criticalPatients = $criticalLabResults
+            ->map(fn ($result) => optional($result->labOrder)->patient)
+            ->filter()
+            ->unique('patient_uid')
+            ->values()
+            ->map(fn ($patient) => [
+                'patient_uid' => $patient->patient_uid,
+                'full_name' => $patient->full_name,
+            ])
+            ->all();
 
         $outstandingInvoices = Invoice::whereIn('status', ['unpaid', 'partial'])->get();
         $outstandingTotal = $outstandingInvoices->sum(fn ($i) => $i->total_amount - $i->amount_paid);
@@ -112,6 +127,7 @@ class DashboardController extends Controller
             'department_queue_counts' => $departmentQueueCounts,
             'pending_lab_orders' => $pendingLab,
             'critical_results_unacknowledged' => $criticalUnack,
+            'critical_results_unacknowledged_patients' => $criticalPatients,
             'outstanding_billing_total' => $outstandingTotal,
             'low_stock_drug_count' => $lowStock,
             'visits_last_7_days' => $visitsLast7Days,

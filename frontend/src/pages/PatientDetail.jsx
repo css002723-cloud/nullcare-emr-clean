@@ -14,6 +14,7 @@ export default function PatientDetail() {
   const navigate = useNavigate();
   const [patient, setPatient] = useState(null);
   const [encounters, setEncounters] = useState([]);
+  const [labOrders, setLabOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showAllergyForm, setShowAllergyForm] = useState(false);
   const [allergy, setAllergy] = useState({ substance: "", reaction: "", severity: "mild" });
@@ -28,6 +29,12 @@ export default function PatientDetail() {
       setPatient(pRes.data);
       const hRes = await api.get(`/patients/${pRes.data.id}/history`);
       setEncounters(hRes.data);
+      if (hasRole("doctor")) {
+        const labsRes = await api.get("/lab/orders", { params: { patient_id: pRes.data.id } });
+        setLabOrders(labsRes.data);
+      } else {
+        setLabOrders([]);
+      }
     } catch {
       // offline with nothing cached — leave blank, page will show empty state
     } finally {
@@ -172,6 +179,45 @@ export default function PatientDetail() {
           {error && <p className="mt-2 text-xs text-alert bg-alert/5 border border-alert/20 rounded px-2 py-1">{error}</p>}
         </Card>
       </div>
+
+      {hasRole("doctor") && (
+        <Card>
+          <div className="flex items-center justify-between mb-3">
+            <p className="font-display text-lg">Laboratory results</p>
+            <p className="text-xs text-ink/50">Only doctors can view lab results here.</p>
+          </div>
+          {labOrders.length === 0 ? (
+            <p className="text-sm text-ink/40">No lab orders found for this patient.</p>
+          ) : (
+            <div className="space-y-3">
+              {labOrders.map((order) => (
+                <div key={order.id} className="rounded-2xl border border-line p-4 bg-surface-alt">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold">{order.loinc_display || order.test_code}</p>
+                      <p className="text-xs text-ink/50 mrn-mono">LOINC {order.loinc_code || "n/a"} · barcode {order.barcode}</p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Badge tone={order.status === "resulted" ? "success" : "muted"}>{order.status}</Badge>
+                      {order.result?.is_critical && <Badge tone="critical">Critical</Badge>}
+                      {order.result?.is_abnormal && !order.result?.is_critical && <Badge tone="warning">Abnormal</Badge>}
+                    </div>
+                  </div>
+                  {order.result ? (
+                    <div className="mt-3 grid gap-2 text-sm text-ink/70">
+                      <p><span className="font-semibold text-ink">Result:</span> {order.result.result_value} {order.result.unit || ""}</p>
+                      {order.result.reference_range && <p><span className="font-semibold text-ink">Reference range:</span> {order.result.reference_range}</p>}
+                      {order.result.interpretation && <p><span className="font-semibold text-ink">Interpretation:</span> {order.result.interpretation}</p>}
+                    </div>
+                  ) : (
+                    <p className="mt-3 text-sm text-ink/50">No result recorded yet for this test.</p>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
+      )}
 
       <Card>
         <p className="font-display text-lg mb-3">Visit history</p>

@@ -7,6 +7,7 @@ use App\Http\Resources\AllergyResource;
 use App\Http\Resources\EncounterResource;
 use App\Http\Resources\PatientResource;
 use App\Models\Encounter;
+use App\Models\LabResult;
 use App\Models\Patient;
 use App\Services\AuditLogger;
 use App\Services\IdGenerator;
@@ -55,7 +56,18 @@ class PatientController extends Controller
 
         $patients = $query->orderByDesc('created_at')->limit(100)->get();
 
-        $result = $patients->map(function (Patient $p) {
+        $patientIds = $patients->pluck('id');
+        $criticalPatientIds = LabResult::where('is_critical', true)
+            ->where('critical_alert_acknowledged', false)
+            ->whereHas('labOrder', fn ($q) => $q->whereIn('patient_id', $patientIds))
+            ->get()
+            ->map(fn ($result) => $result->labOrder?->patient_id)
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+
+        $result = $patients->map(function (Patient $p) use ($criticalPatientIds) {
             $latest = Encounter::where('patient_id', $p->id)->latest()->first();
             $d = (new PatientResource($p))->toArray(request());
             $d['latest_encounter_at'] = $latest?->created_at?->toIso8601String();
@@ -63,6 +75,7 @@ class PatientController extends Controller
             $d['latest_mrn'] = $latest?->mrn;
             $d['latest_encounter_stage'] = $latest?->stage;
             $d['has_active_encounter'] = $latest && ! in_array($latest->stage, Encounter::CLOSED_STAGES, true);
+            $d['has_critical_lab_alert'] = in_array($p->id, $criticalPatientIds, true);
 
             return $d;
         });

@@ -7,6 +7,7 @@ use App\Http\Resources\EncounterResource;
 use App\Http\Resources\PatientResource;
 use App\Models\ClinicalNote;
 use App\Models\Encounter;
+use App\Models\LabResult;
 use App\Models\Patient;
 use App\Services\AuditLogger;
 use App\Services\IdGenerator;
@@ -35,11 +36,23 @@ class EncounterController extends Controller
 
         $encounters = $query->orderByDesc('is_emergency')->orderByDesc('created_at')->limit(200)->get();
 
-        $result = $encounters->map(function (Encounter $e) {
+        $encounterIds = $encounters->pluck('id');
+        $criticalEncounterIds = LabResult::where('is_critical', true)
+            ->where('critical_alert_acknowledged', false)
+            ->whereHas('labOrder', fn ($q) => $q->whereIn('encounter_id', $encounterIds))
+            ->get()
+            ->map(fn ($result) => $result->labOrder?->encounter_id)
+            ->filter()
+            ->unique()
+            ->values()
+            ->all();
+
+        $result = $encounters->map(function (Encounter $e) use ($criticalEncounterIds) {
             $d = (new EncounterResource($e))->toArray(request());
             $patient = Patient::find($e->patient_id);
             $d['patient'] = $patient ? (new PatientResource($patient))->toArray(request()) : null;
             $d['referral'] = in_array($e->stage, Encounter::CLOSED_STAGES, true) ? null : $e->activeReferralSummary();
+            $d['has_critical_lab_alert'] = in_array($e->id, $criticalEncounterIds, true);
 
             return $d;
         });

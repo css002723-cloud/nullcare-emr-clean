@@ -35,6 +35,9 @@ class LabController extends Controller
         if ($request->filled('encounter_id')) {
             $query->where('encounter_id', $request->query('encounter_id'));
         }
+        if ($request->filled('patient_id')) {
+            $query->where('patient_id', $request->query('patient_id'));
+        }
 
         $orders = $query->latest()->get();
 
