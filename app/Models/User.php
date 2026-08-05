@@ -19,6 +19,9 @@ class User extends Authenticatable
     /** Matches PASSWORD_MAX_AGE_DAYS in the Python reference exactly (180 days / ~6 months). */
     const PASSWORD_MAX_AGE_DAYS = 180;
 
+    /** See Patient::$appends for why — same computed-accessor situation. */
+    protected $appends = ['full_name'];
+
     protected $fillable = [
         'first_name', 'last_name', 'username', 'email', 'password', 'role', 'department',
         'phone', 'is_active', 'must_reset_password', 'password_changed_at',

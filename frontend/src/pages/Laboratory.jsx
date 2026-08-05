@@ -6,7 +6,7 @@ import PageHeader from "../components/PageHeader";
 import PatientLookup from "../components/PatientLookup";
 import { useAuth } from "../context/AuthContext";
 
-const STATUS_TABS = ["ordered", "collected", "received", "resulted"];
+const STATUS_TABS = ["ordered", "collected", "received", "resulted", "verified"];
 
 export default function Laboratory() {
   const { hasRole } = useAuth();
@@ -45,6 +45,24 @@ export default function Laboratory() {
       setActionError(err.response?.data?.message || "Couldn't mark specimen received — please try again.");
     }
   }
+  async function verifyResult(labResultId) {
+    setActionError("");
+    try {
+      await api.post(`/lab/results/${labResultId}/verify`);
+      load(tab);
+    } catch (err) {
+      setActionError(err.response?.data?.message || "Couldn't verify the result — please try again.");
+    }
+  }
+  async function acknowledgeCritical(labResultId) {
+    setActionError("");
+    try {
+      await api.post(`/lab/results/${labResultId}/acknowledge-critical`);
+      load(tab);
+    } catch (err) {
+      setActionError(err.response?.data?.message || "Couldn't acknowledge the critical result — please try again.");
+    }
+  }
 
   return (
     <div className="space-y-5">
@@ -79,7 +97,17 @@ export default function Laboratory() {
       ) : (
         <div className="space-y-3">
           {orders.map((o) => (
-            <LabOrderRow key={o.id} order={o} onCollect={() => collect(o.id)} onReceive={() => receive(o.id)} onResulted={() => load(tab)} />
+            <LabOrderRow
+              key={o.id}
+              order={o}
+              canVerify={hasRole("lab_tech", "admin")}
+              canAcknowledge={hasRole("doctor", "nurse", "admin")}
+              onCollect={() => collect(o.id)}
+              onReceive={() => receive(o.id)}
+              onResulted={() => load(tab)}
+              onVerify={() => verifyResult(o.result.id)}
+              onAcknowledge={() => acknowledgeCritical(o.result.id)}
+            />
           ))}
         </div>
       )}
@@ -156,7 +184,7 @@ function QuickOrderPanel({ catalog, onOrdered }) {
   );
 }
 
-function LabOrderRow({ order, onCollect, onReceive, onResulted }) {
+function LabOrderRow({ order, canVerify, canAcknowledge, onCollect, onReceive, onResulted, onVerify, onAcknowledge }) {
   const [showResultForm, setShowResultForm] = useState(false);
   const [result, setResult] = useState({ result_value: "", unit: "", reference_range: "", is_critical: false, is_abnormal: false, interpretation: "" });
   const [saving, setSaving] = useState(false);
@@ -177,8 +205,10 @@ function LabOrderRow({ order, onCollect, onReceive, onResulted }) {
     }
   }
 
+  const needsAcknowledgement = order.result?.is_critical && !order.result?.critical_alert_acknowledged;
+
   return (
-    <Card>
+    <Card className={needsAcknowledgement ? "border-alert/50 bg-alert/5" : ""}>
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
           <p className="text-sm font-semibold text-teal-700">{order.patient_name || "Patient name unavailable"}</p>
@@ -192,14 +222,28 @@ function LabOrderRow({ order, onCollect, onReceive, onResulted }) {
           {order.status === "received" && !showResultForm && (
             <Button size="sm" onClick={() => setShowResultForm(true)}>Enter result</Button>
           )}
+          {order.status === "resulted" && canVerify && (
+            <Button size="sm" onClick={onVerify}>Verify result</Button>
+          )}
         </div>
       </div>
 
       {order.result && (
-        <div className="mt-2 text-sm bg-surface-alt rounded-lg p-2">
-          Result: <span className="font-semibold">{order.result.result_value} {order.result.unit}</span>
-          {order.result.reference_range && <span className="text-ink/50"> (ref: {order.result.reference_range})</span>}
-          {order.result.is_critical && <Badge tone="critical" className="ml-2">Critical</Badge>}
+        <div className={`mt-2 text-sm rounded-lg p-2 ${needsAcknowledgement ? "bg-alert/10 border border-alert/30" : "bg-surface-alt"}`}>
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <div>
+              Result: <span className="font-semibold">{order.result.result_value} {order.result.unit}</span>
+              {order.result.reference_range && <span className="text-ink/50"> (ref: {order.result.reference_range})</span>}
+              {order.result.is_critical && (
+                <Badge tone="critical" className="ml-2">
+                  {order.result.critical_alert_acknowledged ? "Critical — acknowledged" : "Critical — needs acknowledgement"}
+                </Badge>
+              )}
+            </div>
+            {needsAcknowledgement && canAcknowledge && (
+              <Button size="sm" variant="clay" onClick={onAcknowledge}>Acknowledge critical result</Button>
+            )}
+          </div>
         </div>
       )}
 

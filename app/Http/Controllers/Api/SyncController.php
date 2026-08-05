@@ -29,7 +29,7 @@ class SyncController extends Controller
             'national_id', 'given_name', 'family_name', 'sex', 'estimated_age',
             'phone', 'village', 'traditional_authority', 'district', 'region',
             'occupation', 'guardian_name', 'guardian_relationship', 'guardian_phone',
-            'patient_category',
+            'patient_category', 'consent_research',
         ],
         'encounter' => ['patient_id', 'visit_type', 'priority', 'chief_complaint', 'current_department'],
         'vitals' => [

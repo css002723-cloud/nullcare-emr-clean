@@ -9,6 +9,15 @@ class Patient extends Model
 {
     use HasFactory;
 
+    /**
+     * full_name is a computed accessor (given_name + family_name), not a
+     * real column — appending it here means any raw model serialization
+     * includes it automatically, not just the places that go through
+     * PatientResource (which already builds it manually and is unaffected
+     * by this — Resources override toArray() entirely).
+     */
+    protected $appends = ['full_name'];
+
     protected $fillable = [
         'client_uuid', 'patient_uid', 'national_id', 'given_name', 'family_name', 'sex',
         'date_of_birth', 'estimated_age', 'phone', 'village', 'traditional_authority',

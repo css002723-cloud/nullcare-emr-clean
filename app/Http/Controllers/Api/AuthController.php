@@ -114,6 +114,16 @@ class AuthController extends Controller
         }
 
         $user = $request->user();
+
+        // ForcedPasswordChange (first-login reset) doesn't send current_password
+        // — the person just authenticated with their temp password moments ago,
+        // that already proved they have it. Settings' self-service change does
+        // send it, and here we actually check it — a signed-in session alone
+        // shouldn't be enough to silently take over the password.
+        if ($request->filled('current_password') && ! Hash::check($request->input('current_password'), $user->password)) {
+            return response()->json(['error' => 'incorrect_password', 'message' => 'Current password is incorrect.'], 422);
+        }
+
         $user->forceFill([
             'password' => Hash::make($newPassword),
             'password_changed_at' => now(),
