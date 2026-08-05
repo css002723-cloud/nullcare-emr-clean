@@ -47,10 +47,41 @@ export default function PatientLookup({ requireEncounter = false, onSelect, onCl
     debounceRef.current = setTimeout(async () => {
       try {
         const res = await api.get("/patients", { params: { q: value, status: "all" } });
-        setResults(res.data);
-        setShowResults(true);
+        if (res.data && res.data.length > 0) {
+          setResults(res.data);
+          setShowResults(true);
+        } else {
+          // fallback: user may have typed an encounter MRN — try searching encounter by MRN
+          try {
+            const encRes = await api.get(`/encounters/by-mrn/${encodeURIComponent(value)}`);
+            const enc = encRes.data;
+            if (enc && enc.patient) {
+              // auto-select the patient + encounter so billing can proceed using MRN
+              const patient = enc.patient;
+              setSelectedPatient(patient);
+              setEncounters([enc]);
+              setSelectedEncounterId(String(enc.id));
+              setShowResults(false);
+              // notify parent immediately
+              if (onSelect) onSelect({
+                patientId: patient.id,
+                patientLabel: `${patient.full_name} (${patient.patient_uid})`,
+                encounterId: enc.id,
+                encounterLabel: enc.mrn,
+              });
+            } else {
+              setResults([]);
+              setShowResults(true);
+            }
+          } catch (err) {
+            // no encounter found by MRN — show empty patient list
+            setResults([]);
+            setShowResults(true);
+          }
+        }
       } catch {
         setResults([]);
+        setShowResults(true);
       } finally {
         setSearching(false);
       }
