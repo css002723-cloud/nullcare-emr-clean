@@ -1,11 +1,15 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { FileDown } from "lucide-react";
+import { FileDown, ClipboardPlus, LogIn } from "lucide-react";
 import api from "../services/api";
 import { Card, Badge, Button, LoadingRow, Field, Input, Select, priorityTone, calcAge } from "../components/ui";
 import PatientRibbon from "../components/PatientRibbon";
+import { useAuth } from "../context/AuthContext";
+
+const CLOSED_STAGES = ["discharged", "closed", "deceased"];
 
 export default function PatientDetail() {
+  const { hasRole } = useAuth();
   const { uid } = useParams();
   const navigate = useNavigate();
   const [patient, setPatient] = useState(null);
@@ -14,6 +18,7 @@ export default function PatientDetail() {
   const [showAllergyForm, setShowAllergyForm] = useState(false);
   const [allergy, setAllergy] = useState({ substance: "", reaction: "", severity: "mild" });
   const [exporting, setExporting] = useState(false);
+  const [startingVisit, setStartingVisit] = useState(false);
   const [error, setError] = useState("");
 
   async function load() {
@@ -65,17 +70,46 @@ export default function PatientDetail() {
     }
   }
 
+  async function startNewVisit() {
+    if (!patient) return;
+    setStartingVisit(true);
+    setError("");
+    try {
+      const res = await api.post("/encounters", { patient_id: patient.id, visit_type: "outpatient" });
+      navigate(`/encounters/${res.data.id}`);
+    } catch (err) {
+      setError(err.response?.data?.message || "Couldn't start a new visit — please try again.");
+    } finally {
+      setStartingVisit(false);
+    }
+  }
+
   if (loading) return <LoadingRow label="Loading patient record…" />;
   if (!patient) return <p className="text-sm text-ink/50">Patient record unavailable — you may be offline.</p>;
+
+  const activeEncounter = encounters.find((e) => !CLOSED_STAGES.includes(e.stage));
 
   return (
     <div className="space-y-5 -mt-6 md:-mt-8">
       <PatientRibbon
         patient={patient}
         extra={
-          <Button size="sm" variant="secondary" icon={FileDown} onClick={exportRecord} disabled={exporting}>
-            {exporting ? "Preparing…" : "Export full record"}
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            {hasRole("reception", "nurse", "admin") && (
+              activeEncounter ? (
+                <Button size="sm" icon={LogIn} onClick={() => navigate(`/encounters/${activeEncounter.id}`)}>
+                  Open current visit
+                </Button>
+              ) : (
+                <Button size="sm" icon={ClipboardPlus} onClick={startNewVisit} disabled={startingVisit}>
+                  {startingVisit ? "Starting…" : "Start new visit → triage"}
+                </Button>
+              )
+            )}
+            <Button size="sm" variant="secondary" icon={FileDown} onClick={exportRecord} disabled={exporting}>
+              {exporting ? "Preparing…" : "Export full record"}
+            </Button>
+          </div>
         }
       />
 

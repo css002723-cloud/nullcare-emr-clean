@@ -8,7 +8,6 @@ import {
 import { useAuth } from "../context/AuthContext";
 import { useTheme } from "../context/ThemeContext";
 import { useUnreadMessages } from "../hooks/useUnreadMessages";
-import nullcareLogo from "../../public/nullcare.png";
 
 const NAV_BY_ROLE = {
   admin: [
@@ -119,7 +118,7 @@ export default function Sidebar({ open, onClose }) {
           <div className="min-w-0 flex-1 space-y-1">
             {/* REPLACED HEART ICON AND TEXT WITH IMAGE BRAND MARK */}
             <img 
-              src={nullcareLogo}
+              src="/nullcare.png"
               alt="nullcare logo" 
               className="h-8 w-auto object-contain brightness-0 invert" 
             />

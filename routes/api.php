@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\AppointmentController;
 use App\Http\Controllers\Api\AuditController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\BillingController;
@@ -37,6 +38,17 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::put('/auth/profile', [AuthController::class, 'updateProfile']);
     Route::post('/verify-password', [AuthController::class, 'verifyPassword']);
     Route::post('/auth/verify-password', [AuthController::class, 'verifyPassword']);
+
+    // ---- Appointments ----
+    Route::get('/appointments/doctors', [AppointmentController::class, 'doctors']);
+    Route::middleware('role:reception,nurse,doctor,admin')->group(function () {
+        Route::get('/appointments', [AppointmentController::class, 'index']);
+    });
+    Route::middleware('role:reception,nurse,admin')->group(function () {
+        Route::post('/appointments', [AppointmentController::class, 'store']);
+        Route::post('/appointments/{appointment}/check-in', [AppointmentController::class, 'checkIn']);
+    });
+    Route::put('/appointments/{appointment}/status', [AppointmentController::class, 'updateStatus']);
 
     // ---- Patients ----
     Route::middleware('role:reception,nurse,doctor,admin')->group(function () {
