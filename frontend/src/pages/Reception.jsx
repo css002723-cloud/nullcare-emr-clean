@@ -57,7 +57,7 @@ export default function Reception() {
   const [tab, setTab] = useState("new");
 
   return (
-    <div className="space-y-6 w-full min-w-full max-w-full pb-10">
+    <div className="space-y-6 w-full min-w-full pb-10">
       {/* Header */}
       <PageHeader
         icon={ClipboardList}
@@ -88,7 +88,7 @@ export default function Reception() {
       </div>
 
       {/* Dynamic Content Container - Forced Full Width */}
-      <div className="w-full min-w-full max-w-full transition-all duration-200">
+      <div className="w-full min-w-full transition-all duration-200">
         {tab === "new" && <NewPatientPanel />}
         {tab === "returning" && <ReturningPatientPanel />}
         {tab === "queue" && <QueuePanel />}
