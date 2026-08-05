@@ -35,7 +35,7 @@ export default function ForcedPasswordChange() {
 
   return (
     <div className="fixed inset-0 z-[100] bg-teal-700 flex items-center justify-center px-4">
-      <div className="w-full max-w-md">
+      <div className="w-full">
         <div className="text-center mb-6">
           <div className="mx-auto mb-3 h-12 w-12 rounded-2xl bg-white/10 flex items-center justify-center">
             <ShieldAlert size={24} className="text-white" />

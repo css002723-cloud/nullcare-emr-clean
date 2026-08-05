@@ -207,7 +207,7 @@ function DischargePanel({ encounterId, onDone }) {
   return (
     <Card>
       <p className="font-display text-lg mb-3">ICU discharge</p>
-      <form onSubmit={submit} className="space-y-3 max-w-md">
+      <form onSubmit={submit} className="space-y-3 w-full">
         <Select value={outcome} onChange={(e) => { setOutcome(e.target.value); setConfirmDeath(false); }}>
           <option value="discharged">Discharge / step down</option>
           <option value="admitted">Transfer to general ward</option>

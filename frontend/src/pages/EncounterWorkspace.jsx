@@ -339,7 +339,7 @@ function DispositionPanel({ encounterId, patientSex, onSaved, onClosed }) {
   return (
     <Card>
       <p className="font-display text-lg mb-3">Close encounter / disposition</p>
-      <form onSubmit={submit} className="space-y-3 max-w-md">
+      <form onSubmit={submit} className="space-y-3 w-full">
         <Select value={outcome} onChange={(e) => { setOutcome(e.target.value); setConfirmDeath(false); }}>
           <option value="discharged">Discharge home</option>
           <option value="admitted">Admit to ward</option>

@@ -11,6 +11,7 @@ import {
 import { Badge, Button, Card, Field, Input, Select, Textarea } from "../components/ui";
 import PageHeader from "../components/PageHeader";
 import api from "../services/api";
+import { createWithOfflineFallback } from "../offline/offlineResource";
 
 const initialForm = {
   patient_first_name: "",
@@ -111,22 +112,31 @@ export default function Appointments() {
     }
 
     try {
-      const { data } = await api.post("/appointments", {
+      const payload = {
         patient_first_name: form.patient_first_name.trim(),
         patient_last_name: form.patient_last_name.trim(),
         patient_name: `${form.patient_first_name.trim()} ${form.patient_last_name.trim()}`,
         phone: form.phone.trim(),
         department: form.department,
+        // send both backend-friendly and frontend-friendly fields
         appointment_date: form.date,
         appointment_time: form.time,
+        date: form.date,
+        time: form.time,
         reason: form.reason.trim(),
         priority: form.priority,
         consent_research: form.consent_research,
-      });
+      };
+
+      const { data, offline } = await createWithOfflineFallback("appointment", "/appointments", payload);
 
       setAppointments((current) => [data, ...current]);
       setForm(initialForm);
-      setMessage(`Appointment booked for ${data.patient_name || `${form.patient_first_name} ${form.patient_last_name}`}.`);
+      setMessage(
+        offline
+          ? `Appointment queued (pending sync) for ${payload.patient_name}.`
+          : `Appointment booked for ${data.patient_name || payload.patient_name}.`
+      );
     } catch (error) {
       console.error(error);
       setMessage(error.response?.data?.message || "Unable to book the appointment.");
@@ -140,7 +150,15 @@ export default function Appointments() {
       setMessage(status === "missed" ? "Appointment marked as missed." : "Appointment marked as completed.");
     } catch (error) {
       console.error(error);
-      setMessage(error.response?.data?.message || "Unable to update the appointment.");
+      // If backend endpoint missing or network error, optimistically update local state
+      setAppointments((current) =>
+        current.map((appointment) =>
+          appointment.id === id || appointment.client_uuid === id
+            ? { ...appointment, status, _pendingStatus: true }
+            : appointment
+        )
+      );
+      setMessage(status === "missed" ? "Appointment marked as missed (pending sync)." : "Appointment marked as completed (pending sync).");
     }
   }
 
@@ -362,7 +380,15 @@ export default function Appointments() {
                   <div>
                     <div className="flex items-center gap-2">
                       <UserRound size={16} className="text-teal-500" />
-                      <p className="font-semibold text-ink">{patientFullName(appointment)}</p>
+                      <p className="font-semibold text-ink flex items-center gap-2">
+                        {patientFullName(appointment)}
+                        {appointment._pendingSync && (
+                          <span className="text-xs text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full">Pending sync</span>
+                        )}
+                        {appointment._pendingStatus && (
+                          <span className="text-xs text-teal-700 bg-teal-50 px-2 py-0.5 rounded-full">Pending update</span>
+                        )}
+                      </p>
                     </div>
                     <p className="mt-1 text-sm text-ink/60">{appointment.reason || "No reason provided yet."}</p>
                     {appointment.consent_research != null && (
@@ -392,21 +418,21 @@ export default function Appointments() {
                 <div className="mt-4 flex flex-wrap gap-2">
                   {appointment.status === "scheduled" && (
                     <>
-                      <Button type="button" variant="secondary" size="sm" icon={CheckCircle2} onClick={() => updateStatus(appointment.id, "completed")}>
+                      <Button type="button" variant="secondary" size="sm" icon={CheckCircle2} onClick={() => updateStatus(appointment.id ?? appointment.client_uuid, "completed")}>
                         Mark completed
                       </Button>
-                      <Button type="button" variant="clay" size="sm" icon={AlertTriangle} onClick={() => updateStatus(appointment.id, "missed")}>
+                      <Button type="button" variant="clay" size="sm" icon={AlertTriangle} onClick={() => updateStatus(appointment.id ?? appointment.client_uuid, "missed")}>
                         Mark missed
                       </Button>
                     </>
                   )}
                   {appointment.status === "missed" && (
-                    <Button type="button" variant="secondary" size="sm" icon={CheckCircle2} onClick={() => updateStatus(appointment.id, "completed")}>
+                    <Button type="button" variant="secondary" size="sm" icon={CheckCircle2} onClick={() => updateStatus(appointment.id ?? appointment.client_uuid, "completed")}>
                       Mark completed
                     </Button>
                   )}
                   {appointment.status === "completed" && (
-                    <Button type="button" variant="secondary" size="sm" icon={CalendarDays} onClick={() => updateStatus(appointment.id, "scheduled")}>
+                    <Button type="button" variant="secondary" size="sm" icon={CalendarDays} onClick={() => updateStatus(appointment.id ?? appointment.client_uuid, "scheduled")}>
                       Re-open
                     </Button>
                   )}

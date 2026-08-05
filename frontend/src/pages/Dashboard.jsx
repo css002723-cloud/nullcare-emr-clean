@@ -34,7 +34,7 @@ export default function Dashboard() {
 
   if (error) {
     return (
-      <Card className="max-w-md mx-auto mt-12 p-6 text-center border-red-500/20 bg-red-50/50 dark:bg-red-950/10">
+      <Card className="w-full mx-auto mt-12 p-6 text-center border-red-500/20 bg-red-50/50 dark:bg-red-950/10">
         <AlertTriangle className="mx-auto text-alert mb-2" size={28} />
         <p className="text-sm font-medium text-ink/70">
           Dashboard data isn't available right now — you may be offline. It will load once you're reconnected.
