@@ -32,9 +32,9 @@ FRONTEND_URL=http://localhost:5173
 
 ### 3. Database Setup
 ```bash
-php artisan migrate
-php artisan db:seed --class=UsersSeeder
+php artisan migrate --seed
 ```
+This runs `DatabaseSeeder`, which seeds demo users, drug stock, and a clinical demo dataset in the correct order. (Note: `UsersSeeder.php` in this folder is leftover from an earlier schema — it references `Role`/`Department` models that no longer exist and will error if run directly. Use the command above, not `--class=UsersSeeder`.)
 
 ### 4. Start Backend Server
 ```bash
@@ -74,15 +74,20 @@ Frontend runs on: `http://localhost:5173`
 
 ## Test Login Credentials
 
-| Email | Password | Role |
+Login is by **username**, not email. All accounts share the same password.
+
+| Username | Password | Role |
 |-------|----------|------|
-| admin@nullcare.local | password | Admin |
-| doctor@nullcare.local | password | Doctor |
-| nurse@nullcare.local | password | Nurse |
-| receptionist@nullcare.local | password | Receptionist |
-| labtech@nullcare.local | password | Lab Technician |
-| pharmacist@nullcare.local | password | Pharmacist |
-| billing@nullcare.local | password | Billing Officer |
+| admin | nullcare123 | Administrator |
+| reception1 | nullcare123 | Reception |
+| nurse1 | nullcare123 | Nurse |
+| doctor1 | nullcare123 | Doctor |
+| labtech1 | nullcare123 | Lab Technician |
+| radiologist1 | nullcare123 | Radiologist |
+| pharmacist1 | nullcare123 | Pharmacist |
+| billing1 | nullcare123 | Billing Officer |
+| dialysis1 | nullcare123 | Dialysis Technician |
+| records1 | nullcare123 | Records Officer |
 
 ---
 
@@ -135,29 +140,15 @@ Output: `frontend/dist/`
 - Check browser console for network errors
 
 ### Login Not Working
-- Verify database seeders ran: `php artisan db:seed --class=UsersSeeder`
-- Check email matches exactly (case-sensitive)
+- Verify database seeders ran: `php artisan migrate --seed`
+- Login uses **username**, not email (e.g. `doctor1`, not an email address) — check for exact match, case-sensitive
 - Clear browser localStorage and try again
 
 ---
 
-## Key Files Changed
+## Demo Accounts and Roles
 
-**Frontend:**
-- `frontend/.env.local` - API configuration
-- `frontend/src/context/AuthContext.jsx` - Fixed API response parsing
-- `frontend/src/services/api.js` - Fixed endpoint handling
-- `frontend/vite.config.js` - Corrected proxy port
-- `frontend/src/App.jsx` - Fixed role names
-
-**Backend:**
-- `app/Http/Middleware/HandleCors.php` - CORS support
-- `app/Http/Middleware/CheckRole.php` - Role authorization
-- `app/Http/Requests/StorePatientRequest.php` - Validation
-- `database/seeders/UsersSeeder.php` - Test data
-- `app/Models/Role.php` - Fixed model
-- `app/Models/Department.php` - Fixed model
-- `.env.example` - Added FRONTEND_URL
+See the **Test Login Credentials** table above. Seeded via `database/seeders/TestUserSeeder.php` — the file actually wired into `DatabaseSeeder`. `UsersSeeder.php` also exists in this folder but is unused, stale leftover from an earlier version of the schema; don't run it.
 
 ---
 
