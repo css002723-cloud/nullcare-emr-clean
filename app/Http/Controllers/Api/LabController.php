@@ -8,6 +8,7 @@ use App\Models\Encounter;
 use App\Models\LabOrder;
 use App\Models\LabResult;
 use App\Models\Order;
+use App\Models\User;
 use App\Services\AuditLogger;
 use App\Services\IdGenerator;
 use Illuminate\Http\Request;
@@ -27,7 +28,7 @@ class LabController extends Controller
     /**
      * GET /api/lab/orders?status=&encounter_id=&patient_id=
      *
-     * Returns laboratory orders with:
+     * Returns enriched laboratory orders including:
      * - Patient name
      * - Patient ID
      * - Age
@@ -35,6 +36,10 @@ class LabController extends Controller
      * - Patient category
      * - Visit type
      * - Emergency status
+     * - Priority
+     * - MRN
+     * - Encounter number
+     * - Referring doctor
      * - Doctor's clinical notes
      * - Latest laboratory result
      */
@@ -96,10 +101,6 @@ class LabController extends Controller
              * =====================================================
              * PATIENT ID
              * =====================================================
-             *
-             * patient_uid = permanent patient identifier.
-             *
-             * MRN is encounter-specific and is returned separately.
              */
 
             $d['patient_id'] =
@@ -124,16 +125,19 @@ class LabController extends Controller
             if ($patient?->date_of_birth) {
 
                 try {
+
                     $d['age'] = Carbon::parse(
                         $patient->date_of_birth
                     )->age;
+
                 } catch (\Throwable $e) {
+
                     $d['age'] = null;
                 }
             }
 
             /*
-             * Fallback for patients where DOB is not available.
+             * Fallback for estimated age.
              */
             if (
                 $d['age'] === null &&
@@ -160,9 +164,6 @@ class LabController extends Controller
              * =====================================================
              * PATIENT CATEGORY
              * =====================================================
-             *
-             * In your EncounterController, visit_type is the
-             * correct field for the patient's visit category.
              */
 
             $d['patient_category'] =
@@ -173,7 +174,7 @@ class LabController extends Controller
 
 
             /*
-             * Visit type separately.
+             * Visit type.
              */
 
             $d['visit_type'] =
@@ -181,7 +182,9 @@ class LabController extends Controller
 
 
             /*
-             * Emergency status.
+             * =====================================================
+             * EMERGENCY STATUS
+             * =====================================================
              */
 
             $d['is_emergency'] =
@@ -192,7 +195,9 @@ class LabController extends Controller
 
 
             /*
-             * Priority.
+             * =====================================================
+             * PRIORITY
+             * =====================================================
              */
 
             $d['priority'] =
@@ -215,11 +220,60 @@ class LabController extends Controller
                 $encounter?->encounter_number;
 
             /*
-             * MRN belongs to this specific visit.
+             * MRN is visit-specific.
              */
 
             $d['mrn'] =
                 $encounter?->mrn;
+
+
+            /*
+             * =====================================================
+             * REFERRING / ORDERING DOCTOR
+             * =====================================================
+             *
+             * The doctor who actually ordered the laboratory
+             * investigation is stored in LabOrder.ordered_by.
+             *
+             * Your store() method already saves:
+             *
+             * 'ordered_by' => $request->user()->id
+             *
+             */
+
+            $referringDoctor = null;
+
+            if ($o->ordered_by) {
+
+                $referringDoctor =
+                    User::find($o->ordered_by);
+            }
+
+            $d['referring_doctor_id'] =
+                $referringDoctor?->id;
+
+            /*
+             * Try the common user name fields.
+             */
+
+            $d['referring_doctor'] =
+                $referringDoctor?->name
+                ?? $referringDoctor?->full_name
+                ?? $referringDoctor?->username
+                ?? null;
+
+
+            /*
+             * Also return a few aliases so the frontend
+             * can easily use whichever naming convention
+             * is preferred.
+             */
+
+            $d['referring_doctor_name'] =
+                $d['referring_doctor'];
+
+            $d['ordered_by'] =
+                $o->ordered_by;
 
 
             /*
@@ -229,41 +283,49 @@ class LabController extends Controller
              *
              * Clinical notes are stored in ClinicalNote.
              *
-             * We get the latest doctor's note belonging to
-             * this encounter.
+             * We retrieve the latest note written by a doctor
+             * for this particular encounter.
              */
 
             $doctorNote = null;
 
             if ($encounter) {
 
-                $doctorNote = ClinicalNote::where(
-                    'encounter_id',
-                    $encounter->id
-                )
-                    ->where(
-                        'author_role',
-                        'doctor'
+                $doctorNote =
+                    ClinicalNote::where(
+                        'encounter_id',
+                        $encounter->id
                     )
-                    ->latest()
-                    ->first();
+                        ->where(
+                            'author_role',
+                            'doctor'
+                        )
+                        ->latest()
+                        ->first();
             }
 
 
             /*
-             * Build a readable clinical summary.
+             * =====================================================
+             * BUILD DOCTOR NOTE
+             * =====================================================
              */
 
             $noteParts = [];
 
+
             if (
                 $doctorNote &&
-                !empty($doctorNote->presenting_complaint)
+                !empty(
+                    $doctorNote->presenting_complaint
+                )
             ) {
+
                 $noteParts[] =
                     "Presenting Complaint: " .
                     $doctorNote->presenting_complaint;
             }
+
 
             if (
                 $doctorNote &&
@@ -271,105 +333,150 @@ class LabController extends Controller
                     $doctorNote->history_of_presenting_illness
                 )
             ) {
+
                 $noteParts[] =
                     "History of Presenting Illness: " .
                     $doctorNote->history_of_presenting_illness;
             }
 
+
             if (
                 $doctorNote &&
-                !empty($doctorNote->past_medical_history)
+                !empty(
+                    $doctorNote->past_medical_history
+                )
             ) {
+
                 $noteParts[] =
                     "Past Medical History: " .
                     $doctorNote->past_medical_history;
             }
 
+
             if (
                 $doctorNote &&
-                !empty($doctorNote->medication_history)
+                !empty(
+                    $doctorNote->medication_history
+                )
             ) {
+
                 $noteParts[] =
                     "Medication History: " .
                     $doctorNote->medication_history;
             }
 
+
             if (
                 $doctorNote &&
-                !empty($doctorNote->allergy_history)
+                !empty(
+                    $doctorNote->allergy_history
+                )
             ) {
+
                 $noteParts[] =
                     "Allergy History: " .
                     $doctorNote->allergy_history;
             }
 
+
             if (
                 $doctorNote &&
-                !empty($doctorNote->review_of_systems)
+                !empty(
+                    $doctorNote->review_of_systems
+                )
             ) {
+
                 $noteParts[] =
                     "Review of Systems: " .
                     $doctorNote->review_of_systems;
             }
 
+
             if (
                 $doctorNote &&
-                !empty($doctorNote->examination_findings)
+                !empty(
+                    $doctorNote->examination_findings
+                )
             ) {
+
                 $noteParts[] =
                     "Examination Findings: " .
                     $doctorNote->examination_findings;
             }
 
+
             if (
                 $doctorNote &&
-                !empty($doctorNote->diagnosis)
+                !empty(
+                    $doctorNote->diagnosis
+                )
             ) {
+
                 $noteParts[] =
                     "Diagnosis: " .
                     $doctorNote->diagnosis;
             }
 
+
             if (
                 $doctorNote &&
-                !empty($doctorNote->differential_diagnosis)
+                !empty(
+                    $doctorNote->differential_diagnosis
+                )
             ) {
+
                 $noteParts[] =
                     "Differential Diagnosis: " .
                     $doctorNote->differential_diagnosis;
             }
 
+
             if (
                 $doctorNote &&
-                !empty($doctorNote->plan)
+                !empty(
+                    $doctorNote->plan
+                )
             ) {
+
                 $noteParts[] =
                     "Plan: " .
                     $doctorNote->plan;
             }
 
+
             if (
                 $doctorNote &&
-                !empty($doctorNote->follow_up_plan)
+                !empty(
+                    $doctorNote->follow_up_plan
+                )
             ) {
+
                 $noteParts[] =
                     "Follow-up Plan: " .
                     $doctorNote->follow_up_plan;
             }
 
+
             if (
                 $doctorNote &&
-                !empty($doctorNote->history)
+                !empty(
+                    $doctorNote->history
+                )
             ) {
+
                 $noteParts[] =
                     "Clinical History: " .
                     $doctorNote->history;
             }
 
+
             if (
                 $doctorNote &&
-                !empty($doctorNote->body)
+                !empty(
+                    $doctorNote->body
+                )
             ) {
+
                 $noteParts[] =
                     "Doctor's Note: " .
                     $doctorNote->body;
@@ -377,17 +484,22 @@ class LabController extends Controller
 
 
             /*
-             * Final note text.
+             * Combine all available clinical information.
              */
 
             $doctorNoteText =
                 !empty($noteParts)
-                    ? implode("\n\n", $noteParts)
+                    ? implode(
+                        "\n\n",
+                        $noteParts
+                    )
                     : null;
 
 
             /*
-             * Send note to frontend.
+             * =====================================================
+             * SEND DOCTOR NOTES TO FRONTEND
+             * =====================================================
              */
 
             $d['doctor_note'] =
@@ -395,11 +507,6 @@ class LabController extends Controller
 
             $d['doctor_notes'] =
                 $doctorNoteText;
-
-
-            /*
-             * Note metadata.
-             */
 
             $d['doctor_note_type'] =
                 $doctorNote?->note_type;
@@ -445,114 +552,138 @@ class LabController extends Controller
             ! $request->filled('encounter_id') ||
             ! $request->filled('test_code')
         ) {
+
             return response()->json([
-                'error' => 'missing_fields',
+                'error' =>
+                    'missing_fields',
+
                 'message' =>
                     'encounter_id and test_code are required'
+
             ], 400);
         }
 
-        $encounter = Encounter::findOrFail(
-            $request->input('encounter_id')
-        );
+
+        $encounter =
+            Encounter::findOrFail(
+                $request->input(
+                    'encounter_id'
+                )
+            );
+
 
         $loinc =
             LabOrder::CATALOG[
-                $request->input('test_code')
+                $request->input(
+                    'test_code'
+                )
             ] ?? [];
 
 
-        $labOrder = DB::transaction(
-            function () use (
-                $request,
-                $encounter,
-                $loinc
-            ) {
+        $labOrder =
+            DB::transaction(
+                function () use (
+                    $request,
+                    $encounter,
+                    $loinc
+                ) {
 
-                /*
-                 * Generic order.
-                 */
+                    /*
+                     * Generic order.
+                     */
 
-                $genericOrder = Order::create([
-                    'encounter_id' =>
-                        $encounter->id,
+                    $genericOrder =
+                        Order::create([
 
-                    'patient_id' =>
-                        $encounter->patient_id,
+                            'encounter_id' =>
+                                $encounter->id,
 
-                    'order_type' =>
-                        'lab',
+                            'patient_id' =>
+                                $encounter->patient_id,
 
-                    'details' =>
-                        $request->input(
-                            'test_code'
-                        ),
+                            'order_type' =>
+                                'lab',
 
-                    'priority' =>
-                        $request->input(
-                            'priority',
-                            'routine'
-                        ),
+                            'details' =>
+                                $request->input(
+                                    'test_code'
+                                ),
 
-                    'target_department' =>
-                        'laboratory',
+                            'priority' =>
+                                $request->input(
+                                    'priority',
+                                    'routine'
+                                ),
 
-                    'ordered_by' =>
-                        $request->user()->id,
-                ]);
+                            'target_department' =>
+                                'laboratory',
+
+                            /*
+                             * This identifies the doctor/user
+                             * who ordered the test.
+                             */
+                            'ordered_by' =>
+                                $request->user()->id,
+                        ]);
 
 
-                /*
-                 * Laboratory order.
-                 */
+                    /*
+                     * Laboratory order.
+                     */
 
-                return LabOrder::create([
-                    'order_id' =>
-                        $genericOrder->id,
+                    return LabOrder::create([
 
-                    'encounter_id' =>
-                        $encounter->id,
+                        'order_id' =>
+                            $genericOrder->id,
 
-                    'patient_id' =>
-                        $encounter->patient_id,
+                        'encounter_id' =>
+                            $encounter->id,
 
-                    'test_code' =>
-                        $request->input(
-                            'test_code'
-                        ),
+                        'patient_id' =>
+                            $encounter->patient_id,
 
-                    'loinc_code' =>
-                        $loinc['loinc_code']
-                        ?? null,
+                        'test_code' =>
+                            $request->input(
+                                'test_code'
+                            ),
 
-                    'loinc_display' =>
-                        $loinc['loinc_display']
-                        ?? null,
+                        'loinc_code' =>
+                            $loinc[
+                                'loinc_code'
+                            ] ?? null,
 
-                    'specimen_type' =>
-                        $request->input(
-                            'specimen_type'
-                        ),
+                        'loinc_display' =>
+                            $loinc[
+                                'loinc_display'
+                            ] ?? null,
 
-                    'barcode' =>
-                        IdGenerator::barcode(),
+                        'specimen_type' =>
+                            $request->input(
+                                'specimen_type'
+                            ),
 
-                    'priority' =>
-                        $request->input(
-                            'priority',
-                            'routine'
-                        ),
+                        'barcode' =>
+                            IdGenerator::barcode(),
 
-                    'ordered_by' =>
-                        $request->user()->id,
+                        'priority' =>
+                            $request->input(
+                                'priority',
+                                'routine'
+                            ),
 
-                    'client_uuid' =>
-                        $request->input(
-                            'client_uuid'
-                        ),
-                ]);
-            }
-        );
+                        /*
+                         * Referring / ordering doctor.
+                         */
+                        'ordered_by' =>
+                            $request->user()->id,
+
+                        'client_uuid' =>
+                            $request->input(
+                                'client_uuid'
+                            ),
+                    ]);
+                }
+            );
 
 
         AuditLogger::log(
@@ -560,7 +691,9 @@ class LabController extends Controller
             'order_lab_test',
             'encounter',
             $encounter->id,
-            $request->input('test_code')
+            $request->input(
+                'test_code'
+            )
         );
 
 
@@ -573,12 +706,17 @@ class LabController extends Controller
 
     /**
      * POST /api/lab/orders/{labOrder}/collect
+     *
+     * Roles:
+     * lab_tech, nurse, admin
      */
     public function collect(
         Request $request,
         LabOrder $labOrder
     ) {
+
         $labOrder->update([
+
             'status' =>
                 'collected',
 
@@ -589,12 +727,14 @@ class LabController extends Controller
                 now(),
         ]);
 
+
         AuditLogger::log(
             $request->user(),
             'collect_specimen',
             'lab_order',
             $labOrder->id
         );
+
 
         return response()->json(
             $labOrder
@@ -604,12 +744,17 @@ class LabController extends Controller
 
     /**
      * POST /api/lab/orders/{labOrder}/receive
+     *
+     * Roles:
+     * lab_tech, admin
      */
     public function receive(
         Request $request,
         LabOrder $labOrder
     ) {
+
         $labOrder->update([
+
             'status' =>
                 'received',
 
@@ -617,12 +762,14 @@ class LabController extends Controller
                 now(),
         ]);
 
+
         AuditLogger::log(
             $request->user(),
             'receive_specimen',
             'lab_order',
             $labOrder->id
         );
+
 
         return response()->json(
             $labOrder
@@ -632,58 +779,68 @@ class LabController extends Controller
 
     /**
      * POST /api/lab/orders/{labOrder}/result
+     *
+     * Roles:
+     * lab_tech, admin
      */
     public function storeResult(
         Request $request,
         LabOrder $labOrder
     ) {
-        $result = LabResult::create([
-            'lab_order_id' =>
-                $labOrder->id,
 
-            'result_value' =>
-                $request->input(
-                    'result_value'
-                ),
+        $result =
+            LabResult::create([
 
-            'unit' =>
-                $request->input('unit'),
+                'lab_order_id' =>
+                    $labOrder->id,
 
-            'reference_range' =>
-                $request->input(
-                    'reference_range'
-                ),
+                'result_value' =>
+                    $request->input(
+                        'result_value'
+                    ),
 
-            'is_critical' =>
-                $request->input(
-                    'is_critical',
-                    false
-                ),
+                'unit' =>
+                    $request->input(
+                        'unit'
+                    ),
 
-            'is_abnormal' =>
-                $request->input(
-                    'is_abnormal',
-                    false
-                ),
+                'reference_range' =>
+                    $request->input(
+                        'reference_range'
+                    ),
 
-            'interpretation' =>
-                $request->input(
-                    'interpretation'
-                ),
+                'is_critical' =>
+                    $request->input(
+                        'is_critical',
+                        false
+                    ),
 
-            'entered_by' =>
-                $request->user()->id,
+                'is_abnormal' =>
+                    $request->input(
+                        'is_abnormal',
+                        false
+                    ),
 
-            'client_uuid' =>
-                $request->input(
-                    'client_uuid'
-                ),
-        ]);
+                'interpretation' =>
+                    $request->input(
+                        'interpretation'
+                    ),
+
+                'entered_by' =>
+                    $request->user()->id,
+
+                'client_uuid' =>
+                    $request->input(
+                        'client_uuid'
+                    ),
+            ]);
+
 
         $labOrder->update([
             'status' =>
                 'resulted'
         ]);
+
 
         AuditLogger::log(
             $request->user(),
@@ -698,6 +855,7 @@ class LabController extends Controller
                 )
         );
 
+
         return response()->json(
             $result,
             201
@@ -707,12 +865,17 @@ class LabController extends Controller
 
     /**
      * POST /api/lab/results/{labResult}/verify
+     *
+     * Roles:
+     * lab_tech, admin
      */
     public function verify(
         Request $request,
         LabResult $labResult
     ) {
+
         $labResult->update([
+
             'verified_by' =>
                 $request->user()->id,
 
@@ -720,13 +883,16 @@ class LabController extends Controller
                 now(),
         ]);
 
+
         LabOrder::where(
             'id',
             $labResult->lab_order_id
         )->update([
+
             'status' =>
                 'verified'
         ]);
+
 
         AuditLogger::log(
             $request->user(),
@@ -734,6 +900,7 @@ class LabController extends Controller
             'lab_result',
             $labResult->id
         );
+
 
         return response()->json(
             $labResult
@@ -743,15 +910,21 @@ class LabController extends Controller
 
     /**
      * POST /api/lab/results/{labResult}/acknowledge-critical
+     *
+     * Roles:
+     * doctor, nurse, admin
      */
     public function acknowledgeCritical(
         Request $request,
         LabResult $labResult
     ) {
+
         $labResult->update([
+
             'critical_alert_acknowledged' =>
                 true
         ]);
+
 
         AuditLogger::log(
             $request->user(),
@@ -759,6 +932,7 @@ class LabController extends Controller
             'lab_result',
             $labResult->id
         );
+
 
         return response()->json(
             $labResult
@@ -768,314 +942,391 @@ class LabController extends Controller
 
     /**
      * GET /api/lab/critical-unacknowledged
+     *
+     * Returns enriched critical results.
      */
     public function criticalUnacknowledged()
     {
-        $results = LabResult::where(
-            'is_critical',
-            true
-        )
-            ->where(
-                'critical_alert_acknowledged',
-                false
+        $results =
+            LabResult::where(
+                'is_critical',
+                true
             )
-            ->with([
-                'labOrder.patient',
-                'labOrder.encounter',
-            ])
-            ->get()
-            ->map(function (LabResult $r) {
+                ->where(
+                    'critical_alert_acknowledged',
+                    false
+                )
+                ->with([
+                    'labOrder.patient',
+                    'labOrder.encounter',
+                ])
+                ->get()
+                ->map(function (
+                    LabResult $r
+                ) {
 
-                $lo =
-                    $r->labOrder;
+                    $lo =
+                        $r->labOrder;
 
-                $patient =
-                    $lo?->patient;
+                    $patient =
+                        $lo?->patient;
 
-                $encounter =
-                    $lo?->encounter;
+                    $encounter =
+                        $lo?->encounter;
 
 
-                /*
-                 * Age.
-                 */
+                    /*
+                     * =================================================
+                     * AGE
+                     * =================================================
+                     */
 
-                $age = null;
+                    $age = null;
 
-                if ($patient?->date_of_birth) {
+                    if (
+                        $patient?->date_of_birth
+                    ) {
 
-                    try {
-                        $age = Carbon::parse(
-                            $patient->date_of_birth
-                        )->age;
-                    } catch (\Throwable $e) {
-                        $age = null;
+                        try {
+
+                            $age =
+                                Carbon::parse(
+                                    $patient->date_of_birth
+                                )->age;
+
+                        } catch (
+                            \Throwable $e
+                        ) {
+
+                            $age = null;
+                        }
                     }
-                }
-
-                if (
-                    $age === null &&
-                    $patient?->estimated_age !== null
-                ) {
-                    $age =
-                        $patient->estimated_age;
-                }
 
 
-                /*
-                 * Latest doctor's note.
-                 */
+                    if (
+                        $age === null &&
+                        $patient?->estimated_age !== null
+                    ) {
 
-                $doctorNote = null;
+                        $age =
+                            $patient->estimated_age;
+                    }
 
-                if ($encounter) {
 
-                    $doctorNote =
-                        ClinicalNote::where(
-                            'encounter_id',
-                            $encounter->id
-                        )
-                            ->where(
-                                'author_role',
-                                'doctor'
+                    /*
+                     * =================================================
+                     * REFERRING DOCTOR
+                     * =================================================
+                     */
+
+                    $referringDoctor = null;
+
+                    if ($lo?->ordered_by) {
+
+                        $referringDoctor =
+                            User::find(
+                                $lo->ordered_by
+                            );
+                    }
+
+
+                    /*
+                     * =================================================
+                     * DOCTOR'S NOTE
+                     * =================================================
+                     */
+
+                    $doctorNote = null;
+
+                    if ($encounter) {
+
+                        $doctorNote =
+                            ClinicalNote::where(
+                                'encounter_id',
+                                $encounter->id
                             )
-                            ->latest()
-                            ->first();
-                }
+                                ->where(
+                                    'author_role',
+                                    'doctor'
+                                )
+                                ->latest()
+                                ->first();
+                    }
 
 
-                /*
-                 * Build note.
-                 */
-
-                $noteParts = [];
-
-                if (
-                    $doctorNote &&
-                    !empty(
-                        $doctorNote->presenting_complaint
-                    )
-                ) {
-                    $noteParts[] =
-                        "Presenting Complaint: " .
-                        $doctorNote->presenting_complaint;
-                }
-
-                if (
-                    $doctorNote &&
-                    !empty(
-                        $doctorNote->history_of_presenting_illness
-                    )
-                ) {
-                    $noteParts[] =
-                        "History of Presenting Illness: " .
-                        $doctorNote->history_of_presenting_illness;
-                }
-
-                if (
-                    $doctorNote &&
-                    !empty(
-                        $doctorNote->examination_findings
-                    )
-                ) {
-                    $noteParts[] =
-                        "Examination Findings: " .
-                        $doctorNote->examination_findings;
-                }
-
-                if (
-                    $doctorNote &&
-                    !empty(
-                        $doctorNote->diagnosis
-                    )
-                ) {
-                    $noteParts[] =
-                        "Diagnosis: " .
-                        $doctorNote->diagnosis;
-                }
-
-                if (
-                    $doctorNote &&
-                    !empty(
-                        $doctorNote->differential_diagnosis
-                    )
-                ) {
-                    $noteParts[] =
-                        "Differential Diagnosis: " .
-                        $doctorNote->differential_diagnosis;
-                }
-
-                if (
-                    $doctorNote &&
-                    !empty(
-                        $doctorNote->plan
-                    )
-                ) {
-                    $noteParts[] =
-                        "Plan: " .
-                        $doctorNote->plan;
-                }
-
-                if (
-                    $doctorNote &&
-                    !empty(
-                        $doctorNote->follow_up_plan
-                    )
-                ) {
-                    $noteParts[] =
-                        "Follow-up Plan: " .
-                        $doctorNote->follow_up_plan;
-                }
-
-                if (
-                    $doctorNote &&
-                    !empty(
-                        $doctorNote->body
-                    )
-                ) {
-                    $noteParts[] =
-                        "Doctor's Note: " .
-                        $doctorNote->body;
-                }
+                    $noteParts = [];
 
 
-                $doctorNoteText =
-                    !empty($noteParts)
-                        ? implode(
-                            "\n\n",
-                            $noteParts
+                    if (
+                        $doctorNote &&
+                        !empty(
+                            $doctorNote->presenting_complaint
                         )
-                        : null;
+                    ) {
+
+                        $noteParts[] =
+                            "Presenting Complaint: " .
+                            $doctorNote->presenting_complaint;
+                    }
 
 
-                return [
+                    if (
+                        $doctorNote &&
+                        !empty(
+                            $doctorNote->history_of_presenting_illness
+                        )
+                    ) {
 
-                    'id' =>
-                        $r->id,
-
-                    'lab_order_id' =>
-                        $r->lab_order_id,
-
-                    'result_value' =>
-                        $r->result_value,
-
-                    'unit' =>
-                        $r->unit,
-
-                    'reference_range' =>
-                        $r->reference_range,
-
-                    'interpretation' =>
-                        $r->interpretation,
-
-                    'is_critical' =>
-                        (bool)
-                        $r->is_critical,
-
-                    'critical_alert_acknowledged' =>
-                        (bool)
-                        $r->critical_alert_acknowledged,
-
-                    'entered_by' =>
-                        $r->entered_by,
+                        $noteParts[] =
+                            "History of Presenting Illness: " .
+                            $doctorNote->history_of_presenting_illness;
+                    }
 
 
-                    /*
-                     * Lab order.
-                     */
+                    if (
+                        $doctorNote &&
+                        !empty(
+                            $doctorNote->examination_findings
+                        )
+                    ) {
 
-                    'lab_order' =>
-                        $lo
-                            ? [
-                                'id' =>
-                                    $lo->id,
-
-                                'encounter_id' =>
-                                    $lo->encounter_id,
-
-                                'patient_id' =>
-                                    $lo->patient_id,
-
-                                'loinc_display' =>
-                                    $lo->loinc_display,
-
-                                'test_code' =>
-                                    $lo->test_code,
-
-                                'barcode' =>
-                                    $lo->barcode,
-                            ]
-                            : null,
+                        $noteParts[] =
+                            "Examination Findings: " .
+                            $doctorNote->examination_findings;
+                    }
 
 
-                    /*
-                     * Patient information.
-                     */
+                    if (
+                        $doctorNote &&
+                        !empty(
+                            $doctorNote->diagnosis
+                        )
+                    ) {
 
-                    'patient_name' =>
-                        $patient?->full_name,
-
-                    'patient_id' =>
-                        $patient?->patient_uid
-                        ?? $patient?->patient_id
-                        ?? $patient?->identifier
-                        ?? $patient?->mrn
-                        ?? $lo?->patient_id,
-
-                    'age' =>
-                        $age,
-
-                    'sex' =>
-                        $patient?->sex
-                        ?? $patient?->gender,
-
-                    'patient_category' =>
-                        $encounter?->visit_type
-                        ?? $patient?->patient_category
-                        ?? $patient?->category
-                        ?? 'outpatient',
+                        $noteParts[] =
+                            "Diagnosis: " .
+                            $doctorNote->diagnosis;
+                    }
 
 
-                    /*
-                     * Encounter information.
-                     */
+                    if (
+                        $doctorNote &&
+                        !empty(
+                            $doctorNote->differential_diagnosis
+                        )
+                    ) {
 
-                    'encounter_number' =>
-                        $encounter?->encounter_number,
-
-                    'mrn' =>
-                        $encounter?->mrn,
-
-                    'visit_type' =>
-                        $encounter?->visit_type,
-
-                    'is_emergency' =>
-                        (bool) (
-                            $encounter?->is_emergency
-                            ?? false
-                        ),
+                        $noteParts[] =
+                            "Differential Diagnosis: " .
+                            $doctorNote->differential_diagnosis;
+                    }
 
 
-                    /*
-                     * Doctor's notes.
-                     */
+                    if (
+                        $doctorNote &&
+                        !empty(
+                            $doctorNote->plan
+                        )
+                    ) {
 
-                    'doctor_note' =>
-                        $doctorNoteText,
+                        $noteParts[] =
+                            "Plan: " .
+                            $doctorNote->plan;
+                    }
 
-                    'doctor_notes' =>
-                        $doctorNoteText,
 
-                    'doctor_note_type' =>
-                        $doctorNote?->note_type,
+                    if (
+                        $doctorNote &&
+                        !empty(
+                            $doctorNote->follow_up_plan
+                        )
+                    ) {
 
-                    'doctor_id' =>
-                        $doctorNote?->author_id,
+                        $noteParts[] =
+                            "Follow-up Plan: " .
+                            $doctorNote->follow_up_plan;
+                    }
 
-                    'doctor_note_date' =>
-                        $doctorNote?->created_at,
-                ];
-            });
+
+                    if (
+                        $doctorNote &&
+                        !empty(
+                            $doctorNote->body
+                        )
+                    ) {
+
+                        $noteParts[] =
+                            "Doctor's Note: " .
+                            $doctorNote->body;
+                    }
+
+
+                    $doctorNoteText =
+                        !empty($noteParts)
+                            ? implode(
+                                "\n\n",
+                                $noteParts
+                            )
+                            : null;
+
+
+                    return [
+
+                        'id' =>
+                            $r->id,
+
+                        'lab_order_id' =>
+                            $r->lab_order_id,
+
+                        'result_value' =>
+                            $r->result_value,
+
+                        'unit' =>
+                            $r->unit,
+
+                        'reference_range' =>
+                            $r->reference_range,
+
+                        'interpretation' =>
+                            $r->interpretation,
+
+                        'is_critical' =>
+                            (bool)
+                            $r->is_critical,
+
+                        'critical_alert_acknowledged' =>
+                            (bool)
+                            $r->critical_alert_acknowledged,
+
+                        'entered_by' =>
+                            $r->entered_by,
+
+
+                        /*
+                         * Lab order.
+                         */
+
+                        'lab_order' =>
+                            $lo
+                                ? [
+
+                                    'id' =>
+                                        $lo->id,
+
+                                    'encounter_id' =>
+                                        $lo->encounter_id,
+
+                                    'patient_id' =>
+                                        $lo->patient_id,
+
+                                    'loinc_display' =>
+                                        $lo->loinc_display,
+
+                                    'test_code' =>
+                                        $lo->test_code,
+
+                                    'barcode' =>
+                                        $lo->barcode,
+
+                                    'priority' =>
+                                        $lo->priority,
+
+                                ]
+                                : null,
+
+
+                        /*
+                         * Patient.
+                         */
+
+                        'patient_name' =>
+                            $patient?->full_name,
+
+                        'patient_id' =>
+                            $patient?->patient_uid
+                            ?? $patient?->patient_id
+                            ?? $patient?->identifier
+                            ?? $patient?->mrn
+                            ?? $lo?->patient_id,
+
+                        'age' =>
+                            $age,
+
+                        'sex' =>
+                            $patient?->sex
+                            ?? $patient?->gender,
+
+                        'patient_category' =>
+                            $encounter?->visit_type
+                            ?? $patient?->patient_category
+                            ?? $patient?->category
+                            ?? 'outpatient',
+
+
+                        /*
+                         * Encounter.
+                         */
+
+                        'encounter_number' =>
+                            $encounter?->encounter_number,
+
+                        'mrn' =>
+                            $encounter?->mrn,
+
+                        'visit_type' =>
+                            $encounter?->visit_type,
+
+                        'is_emergency' =>
+                            (bool) (
+                                $encounter?->is_emergency
+                                ?? false
+                            ),
+
+
+                        /*
+                         * Referring doctor.
+                         */
+
+                        'referring_doctor_id' =>
+                            $referringDoctor?->id,
+
+                        'referring_doctor' =>
+                            $referringDoctor?->name
+                            ?? $referringDoctor?->full_name
+                            ?? $referringDoctor?->username
+                            ?? null,
+
+                        'referring_doctor_name' =>
+                            $referringDoctor?->name
+                            ?? $referringDoctor?->full_name
+                            ?? $referringDoctor?->username
+                            ?? null,
+
+                        'ordered_by' =>
+                            $lo?->ordered_by,
+
+
+                        /*
+                         * Doctor's notes.
+                         */
+
+                        'doctor_note' =>
+                            $doctorNoteText,
+
+                        'doctor_notes' =>
+                            $doctorNoteText,
+
+                        'doctor_note_type' =>
+                            $doctorNote?->note_type,
+
+                        'doctor_id' =>
+                            $doctorNote?->author_id,
+
+                        'doctor_note_date' =>
+                            $doctorNote?->created_at,
+                    ];
+                });
+
 
         return response()->json(
             $results
