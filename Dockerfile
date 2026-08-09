@@ -6,8 +6,8 @@ RUN npm ci
 COPY . .
 RUN npm run build
 
-# Stage 2: Serve PHP & Laravel (PHP 8.3)
-FROM php:8.3-cli-alpine
+# Stage 2: Serve PHP & Laravel (PHP 8.4)
+FROM php:8.4-cli-alpine
 
 # Install required system dependencies & PHP extensions for Laravel
 RUN apk add --no-cache \
