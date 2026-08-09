@@ -1,10 +1,30 @@
 import { NavLink } from "react-router-dom";
 import {
-  LayoutDashboard, Users, ClipboardList, Stethoscope, Activity, FlaskConical,
-  ScanLine, Pill, BedDouble, Droplets, Receipt, FileSearch, ShieldCheck,
-  ScrollText, LogOut, Sun, Moon, X, MessageSquareText, Siren, Package, Settings as SettingsIcon,
+  LayoutDashboard,
+  Users,
+  ClipboardList,
+  Stethoscope,
+  Activity,
+  FlaskConical,
+  ScanLine,
+  Pill,
+  BedDouble,
+  Droplets,
+  Receipt,
+  FileSearch,
+  ShieldCheck,
+  ScrollText,
+  LogOut,
+  Moon,
+  Sun,
+  X,
+  MessageSquareText,
+  Siren,
+  Package,
+  Settings as SettingsIcon,
   CalendarDays,
 } from "lucide-react";
+
 import { useAuth } from "../context/AuthContext";
 import { useTheme } from "../context/ThemeContext";
 import { useUnreadMessages } from "../hooks/useUnreadMessages";
@@ -19,217 +39,1009 @@ const NAV_BY_ROLE = {
     { to: "/triage", label: "Triage & Nursing", icon: Activity },
     { to: "/consultation", label: "Consultation", icon: Stethoscope },
     { to: "/laboratory", label: "Laboratory", icon: FlaskConical },
+
+    // Uncomment when Imaging is ready
     // { to: "/imaging", label: "Imaging", icon: ScanLine },
+
     { to: "/pharmacy", label: "Pharmacy", icon: Pill },
     { to: "/wards", label: "Wards", icon: BedDouble },
     { to: "/icu", label: "ICU & HDU", icon: Siren },
     { to: "/dialysis", label: "Dialysis", icon: Droplets },
     { to: "/billing", label: "Billing", icon: Receipt },
-    { to: "/inventory", label: "Inventory & Equipment", icon: Package },
-    { to: "/research", label: "Research Export", icon: FileSearch },
-    { to: "/admin/users", label: "User Management", icon: ShieldCheck },
-    { to: "/admin/audit", label: "Audit Trail", icon: ScrollText },
+    {
+      to: "/inventory",
+      label: "Inventory & Equipment",
+      icon: Package,
+    },
+    {
+      to: "/research",
+      label: "Research Export",
+      icon: FileSearch,
+    },
+    {
+      to: "/admin/users",
+      label: "User Management",
+      icon: ShieldCheck,
+    },
+    {
+      to: "/admin/audit",
+      label: "Audit Trail",
+      icon: ScrollText,
+    },
   ],
+
   reception: [
-    { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-    { to: "/patients", label: "Patients", icon: Users },
-    { to: "/appointments", label: "Appointments", icon: CalendarDays },
-    { to: "/reception", label: "Reception", icon: ClipboardList },
+    {
+      to: "/dashboard",
+      label: "Dashboard",
+      icon: LayoutDashboard,
+    },
+    {
+      to: "/patients",
+      label: "Patients",
+      icon: Users,
+    },
+    {
+      to: "/appointments",
+      label: "Appointments",
+      icon: CalendarDays,
+    },
+    {
+      to: "/reception",
+      label: "Reception",
+      icon: ClipboardList,
+    },
   ],
+
   nurse: [
-    { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-    { to: "/patients", label: "Patients", icon: Users },
-    { to: "/appointments", label: "Appointments", icon: CalendarDays },
-    { to: "/triage", label: "Triage & Nursing", icon: Activity },
-    { to: "/wards", label: "Wards", icon: BedDouble },
-    { to: "/icu", label: "ICU & HDU", icon: Siren },
-    { to: "/inventory", label: "Inventory & Equipment", icon: Package },
+    {
+      to: "/dashboard",
+      label: "Dashboard",
+      icon: LayoutDashboard,
+    },
+    {
+      to: "/patients",
+      label: "Patients",
+      icon: Users,
+    },
+    {
+      to: "/appointments",
+      label: "Appointments",
+      icon: CalendarDays,
+    },
+    {
+      to: "/triage",
+      label: "Triage & Nursing",
+      icon: Activity,
+    },
+    {
+      to: "/wards",
+      label: "Wards",
+      icon: BedDouble,
+    },
+    {
+      to: "/icu",
+      label: "ICU & HDU",
+      icon: Siren,
+    },
+    {
+      to: "/inventory",
+      label: "Inventory & Equipment",
+      icon: Package,
+    },
   ],
+
   doctor: [
-    { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-    { to: "/patients", label: "Patients", icon: Users },
-    { to: "/appointments", label: "Appointments", icon: CalendarDays },
-    { to: "/consultation", label: "Consultation", icon: Stethoscope },
-    { to: "/wards", label: "Wards", icon: BedDouble },
-    { to: "/icu", label: "ICU & HDU", icon: Siren },
+    {
+      to: "/dashboard",
+      label: "Dashboard",
+      icon: LayoutDashboard,
+    },
+    {
+      to: "/patients",
+      label: "Patients",
+      icon: Users,
+    },
+    {
+      to: "/appointments",
+      label: "Appointments",
+      icon: CalendarDays,
+    },
+    {
+      to: "/consultation",
+      label: "Consultation",
+      icon: Stethoscope,
+    },
+    {
+      to: "/wards",
+      label: "Wards",
+      icon: BedDouble,
+    },
+    {
+      to: "/icu",
+      label: "ICU & HDU",
+      icon: Siren,
+    },
   ],
+
   lab_tech: [
-    { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-    { to: "/laboratory", label: "Laboratory", icon: FlaskConical },
-    { to: "/inventory", label: "Inventory & Equipment", icon: Package },
+    {
+      to: "/dashboard",
+      label: "Dashboard",
+      icon: LayoutDashboard,
+    },
+    {
+      to: "/laboratory",
+      label: "Laboratory",
+      icon: FlaskConical,
+    },
+    {
+      to: "/inventory",
+      label: "Inventory & Equipment",
+      icon: Package,
+    },
   ],
+
   radiologist: [
-    { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-    { to: "/imaging", label: "Imaging", icon: ScanLine },
-    { to: "/inventory", label: "Inventory & Equipment", icon: Package },
+    {
+      to: "/dashboard",
+      label: "Dashboard",
+      icon: LayoutDashboard,
+    },
+    {
+      to: "/imaging",
+      label: "Imaging",
+      icon: ScanLine,
+    },
+    {
+      to: "/inventory",
+      label: "Inventory & Equipment",
+      icon: Package,
+    },
   ],
+
   pharmacist: [
-    { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-    { to: "/pharmacy", label: "Pharmacy", icon: Pill },
-    { to: "/inventory", label: "Inventory & Equipment", icon: Package },
+    {
+      to: "/dashboard",
+      label: "Dashboard",
+      icon: LayoutDashboard,
+    },
+    {
+      to: "/pharmacy",
+      label: "Pharmacy",
+      icon: Pill,
+    },
+    {
+      to: "/inventory",
+      label: "Inventory & Equipment",
+      icon: Package,
+    },
   ],
+
   billing: [
-    { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-    { to: "/billing", label: "Billing", icon: Receipt },
+    {
+      to: "/dashboard",
+      label: "Dashboard",
+      icon: LayoutDashboard,
+    },
+    {
+      to: "/billing",
+      label: "Billing",
+      icon: Receipt,
+    },
   ],
+
   dialysis_tech: [
-    { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-    { to: "/dialysis", label: "Dialysis", icon: Droplets },
-    { to: "/inventory", label: "Inventory & Equipment", icon: Package },
+    {
+      to: "/dashboard",
+      label: "Dashboard",
+      icon: LayoutDashboard,
+    },
+    {
+      to: "/dialysis",
+      label: "Dialysis",
+      icon: Droplets,
+    },
+    {
+      to: "/inventory",
+      label: "Inventory & Equipment",
+      icon: Package,
+    },
   ],
+
   records_officer: [
-    { to: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-    { to: "/patients", label: "Patients", icon: Users },
-    { to: "/research", label: "Research Export", icon: FileSearch },
+    {
+      to: "/dashboard",
+      label: "Dashboard",
+      icon: LayoutDashboard,
+    },
+    {
+      to: "/patients",
+      label: "Patients",
+      icon: Users,
+    },
+    {
+      to: "/research",
+      label: "Research Export",
+      icon: FileSearch,
+    },
   ],
 };
 
 export default function Sidebar({ open, onClose }) {
   const { user, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
+
   const { unreadCount } = useUnreadMessages();
   const { scheduledCount } = useMyAppointments();
+
   const roleItems = NAV_BY_ROLE[user?.role] || [];
 
   const items = [
     ...roleItems.slice(0, 1),
-    { to: "/messages", label: "Messages", icon: MessageSquareText, badge: unreadCount },
+
+    {
+      to: "/messages",
+      label: "Messages",
+      icon: MessageSquareText,
+      badge: unreadCount,
+    },
+
     ...roleItems.slice(1),
-  ].map((item) => (item.to === "/appointments" ? { ...item, badge: scheduledCount } : item));
+  ].map((item) =>
+    item.to === "/appointments"
+      ? {
+          ...item,
+          badge: scheduledCount,
+        }
+      : item
+  );
+
+  const isDark = theme === "dark";
 
   return (
     <>
-      {/* Mobile overlay backdrop */}
+      {/* =====================================================
+          MOBILE OVERLAY
+      ====================================================== */}
       {open && (
         <div
-          className="fixed inset-0 bg-slate-950/60 backdrop-blur-sm z-40 md:hidden transition-opacity"
+          className={`
+            fixed
+            inset-0
+            z-40
+            md:hidden
+
+            backdrop-blur-sm
+
+            ${
+              isDark
+                ? "bg-black/40"
+                : "bg-teal-950/20"
+            }
+          `}
           onClick={onClose}
           aria-hidden="true"
         />
       )}
 
+      {/* =====================================================
+          SIDEBAR
+      ====================================================== */}
       <nav
         aria-label="Main navigation"
-        className={`w-64 shrink-0 bg-teal-800 text-teal-50 min-h-screen flex flex-col no-print
-          fixed md:sticky top-0 left-0 z-50 md:z-auto h-screen md:h-auto border-r border-teal-700/50 shadow-xl
-          transition-transform duration-200 ease-out
-          ${open ? "translate-x-0" : "-translate-x-full md:translate-x-0"}`}
+        className={`
+          fixed
+          md:sticky
+
+          top-0
+          left-0
+
+          z-50
+          md:z-auto
+
+          w-64
+          shrink-0
+
+          h-screen
+          md:h-auto
+
+          min-h-screen
+
+          flex
+          flex-col
+
+          no-print
+
+          border-r
+
+          transition-all
+          duration-200
+          ease-out
+
+          ${
+            isDark
+              ? `
+                bg-teal-900
+                text-teal-50
+                border-teal-800
+              `
+              : `
+                bg-white
+                text-teal-800
+                border-slate-200
+              `
+          }
+
+          ${
+            open
+              ? "translate-x-0"
+              : "-translate-x-full md:translate-x-0"
+          }
+        `}
       >
-        {/* BRANDING HEADER CONTAINER */}
-        <div className="px-5 py-5 border-b border-teal-700/60 flex items-center justify-between">
-          <div className="min-w-0 flex-1 space-y-1">
-            {/* REPLACED HEART ICON AND TEXT WITH IMAGE BRAND MARK */}
-            <img 
+
+        {/* =====================================================
+            BRANDING
+        ====================================================== */}
+        <div
+          className={`
+            px-5
+            py-5
+
+            border-b
+
+            flex
+            items-center
+            justify-between
+
+            ${
+              isDark
+                ? "border-teal-800"
+                : "border-slate-100"
+            }
+          `}
+        >
+          <div className="min-w-0 flex-1">
+
+            <img
               src="/nullcare.png"
-              alt="nullcare logo" 
-              className="h-8 w-auto object-contain brightness-0 invert" 
+              alt="NullCare logo"
+              className="
+                h-8
+                w-auto
+                object-contain
+              "
             />
-            <p className="text-[11px] text-teal-200/80 font-medium tracking-wide">MUST Teaching Hospital EMR</p>
+
+            <p
+              className={`
+                mt-2
+
+                text-[11px]
+
+                font-medium
+
+                tracking-wide
+
+                ${
+                  isDark
+                    ? "text-teal-200/70"
+                    : "text-teal-700/70"
+                }
+              `}
+            >
+              MUST Teaching Hospital EMR
+            </p>
+
           </div>
+
+          {/* Mobile close */}
           <button
             onClick={onClose}
             aria-label="Close menu"
-            className="md:hidden h-8 w-8 rounded-lg flex items-center justify-center text-teal-100 hover:bg-teal-700/60 transition-colors shrink-0"
+            className={`
+              md:hidden
+
+              h-8
+              w-8
+
+              rounded-lg
+
+              flex
+              items-center
+              justify-center
+
+              transition-colors
+
+              ${
+                isDark
+                  ? `
+                    text-teal-200
+                    hover:bg-teal-800
+                    hover:text-white
+                  `
+                  : `
+                    text-teal-700
+                    hover:bg-teal-50
+                    hover:text-teal-900
+                  `
+              }
+            `}
           >
             <X size={18} />
           </button>
+
         </div>
 
-        <div className="flex-1 py-4 px-3 space-y-1 overflow-y-auto">
+
+        {/* =====================================================
+            NAVIGATION
+        ====================================================== */}
+        <div
+          className="
+            flex-1
+
+            py-4
+            px-3
+
+            overflow-y-auto
+
+            space-y-1
+          "
+        >
+
           {items.map((item) => {
+
             const Icon = item.icon;
+
             return (
               <NavLink
                 key={item.to}
                 to={item.to}
                 onClick={onClose}
-                className={({ isActive }) =>
-                  `group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-150 ${
-                    isActive
-                      ? "bg-white/10 text-white shadow-sm backdrop-blur-md border border-white/10 font-semibold"
-                      : "text-teal-100/80 hover:bg-teal-700/50 hover:text-white"
-                  }`
-                }
+                className={({ isActive }) => `
+                  group
+                  relative
+
+                  flex
+                  items-center
+                  gap-3
+
+                  rounded-xl
+
+                  px-3
+                  py-2.5
+
+                  text-sm
+                  font-medium
+
+                  transition-all
+                  duration-150
+
+                  ${
+                    isDark
+                      ? isActive
+                        ? `
+                          bg-teal-700
+                          text-white
+                          font-semibold
+
+                          shadow-sm
+                        `
+                        : `
+                          text-teal-100
+
+                          hover:bg-teal-800
+                          hover:text-white
+                        `
+                      : isActive
+                        ? `
+                          bg-teal-50
+                          text-teal-800
+                          font-semibold
+                        `
+                        : `
+                          text-teal-800
+
+                          hover:bg-teal-50
+                          hover:text-teal-900
+                        `
+                  }
+                `}
               >
+
                 {({ isActive }) => (
                   <>
+
+                    {/* =====================================
+                        ACTIVE INDICATOR
+                    ====================================== */}
                     {isActive && (
-                      <span className="absolute left-0 top-2 bottom-2 w-1 bg-teal-300 rounded-r-full" />
+                      <span
+                        className={`
+                          absolute
+
+                          left-0
+
+                          top-2
+                          bottom-2
+
+                          w-1
+
+                          rounded-r-full
+
+                          ${
+                            isDark
+                              ? "bg-teal-200"
+                              : "bg-teal-700"
+                          }
+                        `}
+                      />
                     )}
-                    <Icon size={18} strokeWidth={isActive ? 2.2 : 2} className="shrink-0 transition-transform duration-150 group-hover:scale-105" />
-                    <span className="flex-1 truncate">{item.label}</span>
+
+
+                    {/* =====================================
+                        ICON
+                    ====================================== */}
+                    <Icon
+                      size={18}
+                      strokeWidth={
+                        isActive ? 2.2 : 2
+                      }
+                      className={`
+                        shrink-0
+
+                        transition-all
+                        duration-150
+
+                        ${
+                          isDark
+                            ? isActive
+                              ? "text-white"
+                              : "text-teal-200 group-hover:text-white"
+                            : isActive
+                              ? "text-teal-700"
+                              : "text-teal-700 group-hover:text-teal-900"
+                        }
+
+                        group-hover:scale-105
+                      `}
+                    />
+
+
+                    {/* =====================================
+                        LABEL
+                    ====================================== */}
+                    <span className="flex-1 truncate">
+                      {item.label}
+                    </span>
+
+
+                    {/* =====================================
+                        BADGE
+                    ====================================== */}
                     {item.badge > 0 && (
-                      <span className="min-w-[1.25rem] h-5 px-1.5 rounded-full bg-rose-500 text-white text-[10px] font-bold flex items-center justify-center shrink-0 shadow-sm">
-                        {item.badge > 9 ? "9+" : item.badge}
+                      <span
+                        className={`
+                          min-w-[1.25rem]
+                          h-5
+
+                          px-1.5
+
+                          rounded-full
+
+                          text-white
+
+                          text-[10px]
+                          font-bold
+
+                          flex
+                          items-center
+                          justify-center
+
+                          shrink-0
+
+                          ${
+                            isDark
+                              ? "bg-teal-600"
+                              : "bg-teal-700"
+                          }
+                        `}
+                      >
+                        {item.badge > 9
+                          ? "9+"
+                          : item.badge}
                       </span>
                     )}
+
                   </>
                 )}
+
               </NavLink>
             );
           })}
+
         </div>
 
-        <div className="px-4 py-4 border-t border-teal-700/60 bg-teal-900/30 space-y-3">
-          {/* Settings Link */}
+
+        {/* =====================================================
+            BOTTOM SECTION
+        ====================================================== */}
+        <div
+          className={`
+            px-4
+            py-4
+
+            border-t
+
+            space-y-3
+
+            ${
+              isDark
+                ? `
+                  bg-teal-900
+                  border-teal-800
+                `
+                : `
+                  bg-white
+                  border-slate-100
+                `
+            }
+          `}
+        >
+
+          {/* ===================================================
+              SETTINGS
+          ==================================================== */}
           <NavLink
             to="/settings"
             onClick={onClose}
-            className={({ isActive }) =>
-              `flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors duration-150 ${
-                isActive
-                  ? "bg-white text-teal-700 shadow-sm"
-                  : "text-teal-100 hover:bg-teal-500/50"
-              }`
-            }
+            className={({ isActive }) => `
+              flex
+              items-center
+              gap-2.5
+
+              rounded-lg
+
+              px-3
+              py-2
+
+              text-sm
+              font-medium
+
+              transition-colors
+
+              ${
+                isDark
+                  ? isActive
+                    ? `
+                      bg-teal-800
+                      text-white
+                      font-semibold
+                    `
+                    : `
+                      text-teal-100
+                      hover:bg-teal-800
+                      hover:text-white
+                    `
+                  : isActive
+                    ? `
+                      bg-teal-50
+                      text-teal-800
+                      font-semibold
+                    `
+                    : `
+                      text-teal-800
+                      hover:bg-teal-50
+                      hover:text-teal-900
+                    `
+              }
+            `}
           >
+
             <SettingsIcon
               size={17}
               strokeWidth={2}
               className="shrink-0"
             />
-            <span className="flex-1">Settings</span>
+
+            <span>
+              Settings
+            </span>
+
           </NavLink>
 
+
+          {/* ===================================================
+              THEME TOGGLE
+          ==================================================== */}
           <button
             onClick={toggleTheme}
-            aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
-            className="w-full flex items-center justify-between gap-2 rounded-lg px-3 py-2 text-sm font-medium text-teal-100 hover:bg-teal-500/50 transition-colors"
+            aria-label={
+              isDark
+                ? "Switch to light mode"
+                : "Switch to dark mode"
+            }
+            className={`
+              w-full
+
+              flex
+              items-center
+              justify-between
+              gap-2
+
+              rounded-lg
+
+              px-3
+              py-2
+
+              text-sm
+              font-medium
+
+              transition-colors
+
+              ${
+                isDark
+                  ? `
+                    text-teal-100
+                    hover:bg-teal-800
+                    hover:text-white
+                  `
+                  : `
+                    text-teal-800
+                    hover:bg-teal-50
+                    hover:text-teal-900
+                  `
+              }
+            `}
           >
+
             <span className="flex items-center gap-2.5">
-              <Moon size={17} strokeWidth={2} />
-              {"Dark mode"}
+
+              {isDark ? (
+                <Sun
+                  size={17}
+                  strokeWidth={2}
+                />
+              ) : (
+                <Moon
+                  size={17}
+                  strokeWidth={2}
+                />
+              )}
+
+              {isDark
+                ? "Light mode"
+                : "Dark mode"}
+
             </span>
+
+
+            {/* =============================================
+                TOGGLE SWITCH
+            ============================================== */}
             <span
-              className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${
-                theme === "dark" ? "bg-teal-300" : "bg-teal-500/60"
-              }`}
+              className={`
+                relative
+
+                inline-flex
+
+                h-5
+                w-9
+
+                items-center
+
+                rounded-full
+
+                transition-colors
+                duration-200
+
+                ${
+                  isDark
+                    ? "bg-teal-700"
+                    : "bg-slate-300"
+                }
+              `}
             >
+
               <span
-                className="inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform"
-                style={{ transform: theme === "dark" ? "translateX(18px)" : "translateX(4px)" }}
+                className={`
+                  inline-block
+
+                  h-3.5
+                  w-3.5
+
+                  rounded-full
+
+                  bg-white
+
+                  shadow-sm
+
+                  transition-transform
+                  duration-200
+
+                  ${
+                    isDark
+                      ? "translate-x-[18px]"
+                      : "translate-x-[4px]"
+                  }
+                `}
               />
+
             </span>
+
           </button>
 
-          <div className="p-2.5 rounded-xl bg-teal-900/40 border border-teal-700/40 flex items-center gap-3">
-            <div className="h-9 w-9 rounded-lg bg-teal-500/20 text-teal-200 border border-teal-500/30 flex items-center justify-center text-sm font-bold shrink-0">
-              {user?.full_name?.[0]}
+
+          {/* ===================================================
+              USER PROFILE
+          ==================================================== */}
+          <div
+            className={`
+              p-2.5
+
+              rounded-xl
+
+              border
+
+              flex
+              items-center
+              gap-3
+
+              ${
+                isDark
+                  ? `
+                    bg-teal-800
+                    border-teal-700
+                  `
+                  : `
+                    bg-teal-50
+                    border-teal-100
+                  `
+              }
+            `}
+          >
+
+            {/* Avatar */}
+            <div
+              className={`
+                h-9
+                w-9
+
+                rounded-lg
+
+                flex
+                items-center
+                justify-center
+
+                text-sm
+                font-bold
+
+                shrink-0
+
+                border
+
+                ${
+                  isDark
+                    ? `
+                      bg-teal-700
+                      text-white
+                      border-teal-600
+                    `
+                    : `
+                      bg-white
+                      text-teal-800
+                      border-teal-100
+                      shadow-sm
+                    `
+                }
+              `}
+            >
+              {user?.full_name?.[0] || "U"}
             </div>
+
+
+            {/* User details */}
             <div className="min-w-0 flex-1">
-              <p className="text-sm font-semibold text-white truncate leading-tight">{user?.full_name}</p>
-              <p className="text-xs text-teal-200/70 capitalize truncate mt-0.5">{user?.role?.replace("_", " ")}</p>
+
+              <p
+                className={`
+                  text-sm
+
+                  font-semibold
+
+                  truncate
+
+                  leading-tight
+
+                  ${
+                    isDark
+                      ? "text-white"
+                      : "text-teal-900"
+                  }
+                `}
+              >
+                {user?.full_name || "User"}
+              </p>
+
+              <p
+                className={`
+                  text-xs
+
+                  capitalize
+
+                  truncate
+
+                  mt-0.5
+
+                  ${
+                    isDark
+                      ? "text-teal-200/70"
+                      : "text-teal-700/70"
+                  }
+                `}
+              >
+                {user?.role?.replace("_", " ") || "User"}
+              </p>
+
             </div>
+
           </div>
 
+
+          {/* ===================================================
+              LOGOUT
+          ==================================================== */}
           <button
             onClick={logout}
-            className="w-full flex items-center justify-center gap-2 py-2 px-3 rounded-lg text-xs font-semibold text-teal-100/90 hover:text-white hover:bg-rose-500/20 transition-colors"
+            className={`
+              w-full
+
+              flex
+              items-center
+              justify-center
+              gap-2
+
+              py-2
+              px-3
+
+              rounded-lg
+
+              text-xs
+              font-semibold
+
+              transition-colors
+
+              ${
+                isDark
+                  ? `
+                    text-teal-200
+
+                    hover:text-red-300
+                    hover:bg-teal-800
+                  `
+                  : `
+                    text-teal-700
+
+                    hover:text-red-600
+                    hover:bg-red-50
+                  `
+              }
+            `}
           >
-            <LogOut size={14} strokeWidth={2.25} />
+
+            <LogOut
+              size={14}
+              strokeWidth={2.25}
+            />
+
             Sign out
+
           </button>
+
         </div>
+
       </nav>
     </>
   );
