@@ -1,7 +1,16 @@
 import { useEffect, useState, useCallback } from "react";
-import { FlaskConical } from "lucide-react";
+import { FlaskConical, User, FileText, Stethoscope } from "lucide-react";
 import api from "../services/api";
-import { Card, Badge, Button, Field, Input, Select, LoadingRow, EmptyState } from "../components/ui";
+import {
+  Card,
+  Badge,
+  Button,
+  Field,
+  Input,
+  Select,
+  LoadingRow,
+  EmptyState,
+} from "../components/ui";
 import PageHeader from "../components/PageHeader";
 import PatientLookup from "../components/PatientLookup";
 import { useAuth } from "../context/AuthContext";
@@ -18,49 +27,80 @@ export default function Laboratory() {
 
   const load = useCallback((status) => {
     setLoading(true);
-    api.get("/lab/orders", { params: status ? { status } : {} })
+
+    api
+      .get("/lab/orders", {
+        params: status ? { status } : {},
+      })
       .then((res) => setOrders(res.data))
       .catch(() => setOrders([]))
       .finally(() => setLoading(false));
   }, []);
 
-  useEffect(() => { load(tab); }, [tab, load]);
-  useEffect(() => { api.get("/lab/catalog").then((res) => setCatalog(res.data)).catch(() => {}); }, []);
+  useEffect(() => {
+    load(tab);
+  }, [tab, load]);
+
+  useEffect(() => {
+    api
+      .get("/lab/catalog")
+      .then((res) => setCatalog(res.data))
+      .catch(() => {});
+  }, []);
 
   async function collect(id) {
     setActionError("");
+
     try {
       await api.post(`/lab/orders/${id}/collect`);
       load(tab);
     } catch (err) {
-      setActionError(err.response?.data?.message || "Couldn't mark specimen collected — please try again.");
+      setActionError(
+        err.response?.data?.message ||
+          "Couldn't mark specimen collected — please try again."
+      );
     }
   }
+
   async function receive(id) {
     setActionError("");
+
     try {
       await api.post(`/lab/orders/${id}/receive`);
       load(tab);
     } catch (err) {
-      setActionError(err.response?.data?.message || "Couldn't mark specimen received — please try again.");
+      setActionError(
+        err.response?.data?.message ||
+          "Couldn't mark specimen received — please try again."
+      );
     }
   }
+
   async function verifyResult(labResultId) {
     setActionError("");
+
     try {
       await api.post(`/lab/results/${labResultId}/verify`);
       load(tab);
     } catch (err) {
-      setActionError(err.response?.data?.message || "Couldn't verify the result — please try again.");
+      setActionError(
+        err.response?.data?.message ||
+          "Couldn't verify the result — please try again."
+      );
     }
   }
+
   async function acknowledgeCritical(labResultId) {
     setActionError("");
+
     try {
       await api.post(`/lab/results/${labResultId}/acknowledge-critical`);
       load(tab);
     } catch (err) {
-      setActionError(err.response?.data?.message || "Couldn't acknowledge the critical result — please try again.");
+      setActionError(
+        err.response?.data?.message ||
+          "Couldn't acknowledge the critical result — please try again."
+      );
     }
   }
 
@@ -72,7 +112,12 @@ export default function Laboratory() {
         subtitle="Specimen tracking with LOINC-coded test results, from order receipt through verification."
       />
 
-      {hasRole("doctor", "nurse") && <QuickOrderPanel catalog={catalog} onOrdered={() => load(tab)} />}
+      {hasRole("doctor", "nurse") && (
+        <QuickOrderPanel
+          catalog={catalog}
+          onOrdered={() => load(tab)}
+        />
+      )}
 
       <div className="flex gap-2 flex-wrap">
         {STATUS_TABS.map((s) => (
@@ -80,7 +125,9 @@ export default function Laboratory() {
             key={s}
             onClick={() => setTab(s)}
             className={`px-3 py-1.5 rounded-full text-sm font-medium capitalize ${
-              tab === s ? "bg-teal-500 text-white" : "bg-surface border border-line text-ink/60"
+              tab === s
+                ? "bg-teal-500 text-white"
+                : "bg-surface border border-line text-ink/60"
             }`}
           >
             {s}
@@ -89,10 +136,14 @@ export default function Laboratory() {
       </div>
 
       {actionError && (
-        <p className="text-xs text-alert bg-alert/5 border border-alert/20 rounded px-2 py-1">{actionError}</p>
+        <p className="text-xs text-alert bg-alert/5 border border-alert/20 rounded px-2 py-1">
+          {actionError}
+        </p>
       )}
 
-      {loading ? <LoadingRow /> : orders.length === 0 ? (
+      {loading ? (
+        <LoadingRow />
+      ) : orders.length === 0 ? (
         <EmptyState title={`No ${tab} orders`} />
       ) : (
         <div className="space-y-3">
@@ -106,7 +157,9 @@ export default function Laboratory() {
               onReceive={() => receive(o.id)}
               onResulted={() => load(tab)}
               onVerify={() => verifyResult(o.result.id)}
-              onAcknowledge={() => acknowledgeCritical(o.result.id)}
+              onAcknowledge={() =>
+                acknowledgeCritical(o.result.id)
+              }
             />
           ))}
         </div>
@@ -127,21 +180,35 @@ function QuickOrderPanel({ catalog, onOrdered }) {
   async function submit(e) {
     e.preventDefault();
     setError("");
+
     if (!encounterId || !testCode) {
-      setError("Select a patient's visit and a test before placing the order.");
+      setError(
+        "Select a patient's visit and a test before placing the order."
+      );
       return;
     }
+
     setSaving(true);
+
     try {
       await api.post("/lab/orders", {
-        encounter_id: encounterId, test_code: testCode,
-        specimen_type: specimenType, priority,
+        encounter_id: encounterId,
+        test_code: testCode,
+        specimen_type: specimenType,
+        priority,
       });
-      setEncounterId(null); setTestCode(""); setSpecimenType("");
+
+      setEncounterId(null);
+      setTestCode("");
+      setSpecimenType("");
       setResetKey((k) => k + 1);
+
       onOrdered();
     } catch (err) {
-      setError(err.response?.data?.message || "Couldn't place the order — please try again.");
+      setError(
+        err.response?.data?.message ||
+          "Couldn't place the order — please try again."
+      );
     } finally {
       setSaving(false);
     }
@@ -149,44 +216,98 @@ function QuickOrderPanel({ catalog, onOrdered }) {
 
   return (
     <Card className="bg-surface-alt border-line">
-      <p className="font-display text-lg mb-3">Order a test (LOINC-coded)</p>
-      <form onSubmit={submit} className="grid md:grid-cols-4 gap-3 items-end">
+      <p className="font-display text-lg mb-3">
+        Order a test (LOINC-coded)
+      </p>
+
+      <form
+        onSubmit={submit}
+        className="grid md:grid-cols-4 gap-3 items-end"
+      >
         <div className="md:col-span-2">
           <PatientLookup
             key={resetKey}
             requireEncounter
             label="Patient"
-            onSelect={({ encounterId }) => setEncounterId(encounterId)}
+            onSelect={({ encounterId }) =>
+              setEncounterId(encounterId)
+            }
           />
         </div>
+
         <Field label="Test">
-          <Select value={testCode} onChange={(e) => setTestCode(e.target.value)}>
+          <Select
+            value={testCode}
+            onChange={(e) => setTestCode(e.target.value)}
+          >
             <option value="">Select…</option>
+
             {Object.entries(catalog).map(([code, meta]) => (
-              <option key={code} value={code}>{meta.loinc_display} ({meta.loinc_code})</option>
+              <option key={code} value={code}>
+                {meta.loinc_display} ({meta.loinc_code})
+              </option>
             ))}
           </Select>
         </Field>
+
         <Field label="Specimen">
-          <Input value={specimenType} onChange={(e) => setSpecimenType(e.target.value)} placeholder="e.g. venous blood" />
+          <Input
+            value={specimenType}
+            onChange={(e) => setSpecimenType(e.target.value)}
+            placeholder="e.g. venous blood"
+          />
         </Field>
+
         <Field label="Priority">
-          <Select value={priority} onChange={(e) => setPriority(e.target.value)}>
+          <Select
+            value={priority}
+            onChange={(e) => setPriority(e.target.value)}
+          >
             <option value="routine">Routine</option>
             <option value="urgent">Urgent</option>
             <option value="stat">Stat</option>
           </Select>
         </Field>
-        {error && <p className="text-sm text-alert md:col-span-4">{error}</p>}
-        <Button type="submit" disabled={saving} className="md:col-span-4">{saving ? "Ordering…" : "Place lab order"}</Button>
+
+        {error && (
+          <p className="text-sm text-alert md:col-span-4">
+            {error}
+          </p>
+        )}
+
+        <Button
+          type="submit"
+          disabled={saving}
+          className="md:col-span-4"
+        >
+          {saving ? "Ordering…" : "Place lab order"}
+        </Button>
       </form>
     </Card>
   );
 }
 
-function LabOrderRow({ order, canVerify, canAcknowledge, onCollect, onReceive, onResulted, onVerify, onAcknowledge }) {
+function LabOrderRow({
+  order,
+  canVerify,
+  canAcknowledge,
+  onCollect,
+  onReceive,
+  onResulted,
+  onVerify,
+  onAcknowledge,
+}) {
   const [showResultForm, setShowResultForm] = useState(false);
-  const [result, setResult] = useState({ result_value: "", unit: "", reference_range: "", is_critical: false, is_abnormal: false, interpretation: "" });
+
+  const [result, setResult] = useState({
+    result_value: "",
+    unit: "",
+    reference_range: "",
+    is_critical: false,
+    is_abnormal: false,
+    interpretation: "",
+  });
+
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
@@ -194,73 +315,414 @@ function LabOrderRow({ order, canVerify, canAcknowledge, onCollect, onReceive, o
     e.preventDefault();
     setSaving(true);
     setError("");
+
     try {
       await api.post(`/lab/orders/${order.id}/result`, result);
       setShowResultForm(false);
       onResulted();
     } catch (err) {
-      setError(err.response?.data?.message || "Couldn't save the result — please try again.");
+      setError(
+        err.response?.data?.message ||
+          "Couldn't save the result — please try again."
+      );
     } finally {
       setSaving(false);
     }
   }
 
-  const needsAcknowledgement = order.result?.is_critical && !order.result?.critical_alert_acknowledged;
+  const needsAcknowledgement =
+    order.result?.is_critical &&
+    !order.result?.critical_alert_acknowledged;
+
+  /*
+   * ------------------------------------------------------------
+   * PATIENT INFORMATION
+   * ------------------------------------------------------------
+   *
+   * The API may return patient information in different places,
+   * so we safely check several possible structures.
+   */
+
+  const patient = order.patient || {};
+  const encounter = order.encounter || {};
+
+  const patientId =
+    order.patient_id_display ||
+    order.patient_identifier ||
+    patient.patient_id ||
+    patient.identifier ||
+    patient.mrn ||
+    order.mrn ||
+    "Not available";
+
+  const age =
+    order.age ??
+    patient.age ??
+    encounter.age ??
+    "Not available";
+
+  const sex =
+    order.sex ||
+    patient.sex ||
+    patient.gender ||
+    "Not available";
+
+  const patientCategory =
+    order.patient_category ||
+    encounter.patient_category ||
+    encounter.category ||
+    patient.patient_category ||
+    order.category ||
+    "Not specified";
+
+  /*
+   * Doctor's notes.
+   *
+   * We check the most common places where the backend may return
+   * the clinical note.
+   */
+
+  const doctorNote =
+    order.doctor_note ||
+    order.doctor_notes ||
+    order.notes ||
+    encounter.doctor_note ||
+    encounter.doctor_notes ||
+    encounter.notes ||
+    order.latest_doctor_note?.note ||
+    order.latest_doctor_note?.body ||
+    order.latest_note?.note ||
+    order.latest_note?.body ||
+    "";
+
+  const doctorName =
+    order.doctor_name ||
+    order.doctor?.name ||
+    order.latest_doctor_note?.doctor_name ||
+    order.latest_doctor_note?.author_name ||
+    "";
 
   return (
-    <Card className={needsAcknowledgement ? "border-alert/50 bg-alert/5" : ""}>
+    <Card
+      className={
+        needsAcknowledgement
+          ? "border-alert/50 bg-alert/5"
+          : ""
+      }
+    >
+      {/* ======================================================
+          HEADER
+      ======================================================= */}
+
       <div className="flex items-center justify-between flex-wrap gap-2">
         <div>
-          <p className="text-sm font-semibold text-teal-700">{order.patient_name || "Patient name unavailable"}</p>
-          <p className="font-semibold">{order.loinc_display || order.test_code}</p>
-          <p className="text-xs text-ink/50 mrn-mono">LOINC {order.loinc_code || "n/a"} · barcode {order.barcode}</p>
+          <p className="text-sm font-semibold text-teal-700">
+            {order.patient_name ||
+              patient.name ||
+              "Patient name unavailable"}
+          </p>
+
+          <p className="font-semibold">
+            {order.loinc_display || order.test_code}
+          </p>
+
+          <p className="text-xs text-ink/50 mrn-mono">
+            LOINC {order.loinc_code || "n/a"} · barcode{" "}
+            {order.barcode || "n/a"}
+          </p>
         </div>
+
         <div className="flex items-center gap-2">
           <Badge tone="muted">{order.status}</Badge>
-          {order.status === "ordered" && <Button size="sm" onClick={onCollect}>Mark specimen collected</Button>}
-          {order.status === "collected" && <Button size="sm" onClick={onReceive}>Mark received in lab</Button>}
-          {order.status === "received" && !showResultForm && (
-            <Button size="sm" onClick={() => setShowResultForm(true)}>Enter result</Button>
+
+          {order.status === "ordered" && (
+            <Button size="sm" onClick={onCollect}>
+              Mark specimen collected
+            </Button>
           )}
+
+          {order.status === "collected" && (
+            <Button size="sm" onClick={onReceive}>
+              Mark received in lab
+            </Button>
+          )}
+
+          {order.status === "received" && !showResultForm && (
+            <Button
+              size="sm"
+              onClick={() => setShowResultForm(true)}
+            >
+              Enter result
+            </Button>
+          )}
+
           {order.status === "resulted" && canVerify && (
-            <Button size="sm" onClick={onVerify}>Verify result</Button>
+            <Button size="sm" onClick={onVerify}>
+              Verify result
+            </Button>
           )}
         </div>
       </div>
 
+      {/* ======================================================
+          PATIENT INFORMATION
+      ======================================================= */}
+
+      <div className="mt-4 border-t border-line pt-4">
+        <div className="flex items-center gap-2 mb-3">
+          <User size={17} className="text-teal-600" />
+
+          <h3 className="text-sm font-semibold">
+            Patient Information
+          </h3>
+        </div>
+
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          {/* Patient ID */}
+          <div className="rounded-lg bg-surface-alt border border-line p-3">
+            <p className="text-[11px] uppercase tracking-wide text-ink/40 mb-1">
+              Patient ID
+            </p>
+
+            <p className="text-sm font-semibold mrn-mono break-all">
+              {patientId}
+            </p>
+          </div>
+
+          {/* Age */}
+          <div className="rounded-lg bg-surface-alt border border-line p-3">
+            <p className="text-[11px] uppercase tracking-wide text-ink/40 mb-1">
+              Age
+            </p>
+
+            <p className="text-sm font-semibold">
+              {age !== "Not available"
+                ? `${age} ${typeof age === "number" || /^\d+$/.test(String(age)) ? "years" : ""}`
+                : age}
+            </p>
+          </div>
+
+          {/* Sex */}
+          <div className="rounded-lg bg-surface-alt border border-line p-3">
+            <p className="text-[11px] uppercase tracking-wide text-ink/40 mb-1">
+              Sex
+            </p>
+
+            <p className="text-sm font-semibold capitalize">
+              {sex}
+            </p>
+          </div>
+
+          {/* Patient Category */}
+          <div className="rounded-lg bg-surface-alt border border-line p-3">
+            <p className="text-[11px] uppercase tracking-wide text-ink/40 mb-1">
+              Patient Category
+            </p>
+
+            <p className="text-sm font-semibold capitalize">
+              {String(patientCategory).replace(/_/g, " ")}
+            </p>
+          </div>
+        </div>
+      </div>
+
+      {/* ======================================================
+          DOCTOR'S NOTES
+      ======================================================= */}
+
+      <div className="mt-4 border-t border-line pt-4">
+        <div className="flex items-center gap-2 mb-3">
+          <Stethoscope size={17} className="text-teal-600" />
+
+          <h3 className="text-sm font-semibold">
+            Doctor's Notes
+          </h3>
+        </div>
+
+        {doctorNote ? (
+          <div className="rounded-lg bg-surface-alt border border-line p-3">
+            <div className="flex items-start gap-3">
+              <FileText
+                size={18}
+                className="text-teal-600 mt-0.5 shrink-0"
+              />
+
+              <div className="min-w-0">
+                {doctorName && (
+                  <p className="text-xs font-semibold text-teal-700 mb-1">
+                    Dr. {doctorName}
+                  </p>
+                )}
+
+                <p className="text-sm text-ink/75 whitespace-pre-wrap leading-relaxed">
+                  {doctorNote}
+                </p>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="rounded-lg bg-surface-alt border border-line p-3">
+            <div className="flex items-center gap-2 text-ink/50">
+              <FileText size={16} />
+
+              <p className="text-sm">
+                No doctor's notes available for this laboratory
+                order.
+              </p>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* ======================================================
+          LAB RESULT
+      ======================================================= */}
+
       {order.result && (
-        <div className={`mt-2 text-sm rounded-lg p-2 ${needsAcknowledgement ? "bg-alert/10 border border-alert/30" : "bg-surface-alt"}`}>
+        <div
+          className={`mt-4 text-sm rounded-lg p-3 ${
+            needsAcknowledgement
+              ? "bg-alert/10 border border-alert/30"
+              : "bg-surface-alt"
+          }`}
+        >
           <div className="flex items-center justify-between flex-wrap gap-2">
             <div>
-              Result: <span className="font-semibold">{order.result.result_value} {order.result.unit}</span>
-              {order.result.reference_range && <span className="text-ink/50"> (ref: {order.result.reference_range})</span>}
+              Result:{" "}
+              <span className="font-semibold">
+                {order.result.result_value}{" "}
+                {order.result.unit}
+              </span>
+
+              {order.result.reference_range && (
+                <span className="text-ink/50">
+                  {" "}
+                  (ref: {order.result.reference_range})
+                </span>
+              )}
+
               {order.result.is_critical && (
                 <Badge tone="critical" className="ml-2">
-                  {order.result.critical_alert_acknowledged ? "Critical — acknowledged" : "Critical — needs acknowledgement"}
+                  {order.result.critical_alert_acknowledged
+                    ? "Critical — acknowledged"
+                    : "Critical — needs acknowledgement"}
                 </Badge>
               )}
             </div>
+
             {needsAcknowledgement && canAcknowledge && (
-              <Button size="sm" variant="clay" onClick={onAcknowledge}>Acknowledge critical result</Button>
+              <Button
+                size="sm"
+                variant="clay"
+                onClick={onAcknowledge}
+              >
+                Acknowledge critical result
+              </Button>
             )}
           </div>
         </div>
       )}
 
+      {/* ======================================================
+          RESULT ENTRY FORM
+      ======================================================= */}
+
       {showResultForm && (
-        <form onSubmit={submitResult} className="mt-3 grid md:grid-cols-2 gap-3 border-t border-line pt-3">
-          <Field label="Result value" required><Input value={result.result_value} onChange={(e) => setResult({ ...result, result_value: e.target.value })} /></Field>
-          <Field label="Unit"><Input value={result.unit} onChange={(e) => setResult({ ...result, unit: e.target.value })} /></Field>
-          <Field label="Reference range"><Input value={result.reference_range} onChange={(e) => setResult({ ...result, reference_range: e.target.value })} /></Field>
-          <Field label="Interpretation"><Input value={result.interpretation} onChange={(e) => setResult({ ...result, interpretation: e.target.value })} /></Field>
+        <form
+          onSubmit={submitResult}
+          className="mt-3 grid md:grid-cols-2 gap-3 border-t border-line pt-3"
+        >
+          <Field label="Result value" required>
+            <Input
+              value={result.result_value}
+              onChange={(e) =>
+                setResult({
+                  ...result,
+                  result_value: e.target.value,
+                })
+              }
+            />
+          </Field>
+
+          <Field label="Unit">
+            <Input
+              value={result.unit}
+              onChange={(e) =>
+                setResult({
+                  ...result,
+                  unit: e.target.value,
+                })
+              }
+            />
+          </Field>
+
+          <Field label="Reference range">
+            <Input
+              value={result.reference_range}
+              onChange={(e) =>
+                setResult({
+                  ...result,
+                  reference_range: e.target.value,
+                })
+              }
+            />
+          </Field>
+
+          <Field label="Interpretation">
+            <Input
+              value={result.interpretation}
+              onChange={(e) =>
+                setResult({
+                  ...result,
+                  interpretation: e.target.value,
+                })
+              }
+            />
+          </Field>
+
           <label className="flex items-center gap-2 text-sm">
-            <input type="checkbox" checked={result.is_abnormal} onChange={(e) => setResult({ ...result, is_abnormal: e.target.checked })} /> Abnormal
+            <input
+              type="checkbox"
+              checked={result.is_abnormal}
+              onChange={(e) =>
+                setResult({
+                  ...result,
+                  is_abnormal: e.target.checked,
+                })
+              }
+            />
+
+            Abnormal
           </label>
+
           <label className="flex items-center gap-2 text-sm text-alert">
-            <input type="checkbox" checked={result.is_critical} onChange={(e) => setResult({ ...result, is_critical: e.target.checked })} /> Critical value — triggers alert
+            <input
+              type="checkbox"
+              checked={result.is_critical}
+              onChange={(e) =>
+                setResult({
+                  ...result,
+                  is_critical: e.target.checked,
+                })
+              }
+            />
+
+            Critical value — triggers alert
           </label>
-          <Button type="submit" className="md:col-span-2" disabled={saving}>{saving ? "Saving…" : "Save result"}</Button>
-          {error && <p className="text-xs text-alert bg-alert/5 border border-alert/20 rounded px-2 py-1 md:col-span-2">{error}</p>}
+
+          <Button
+            type="submit"
+            className="md:col-span-2"
+            disabled={saving}
+          >
+            {saving ? "Saving…" : "Save result"}
+          </Button>
+
+          {error && (
+            <p className="text-xs text-alert bg-alert/5 border border-alert/20 rounded px-2 py-1 md:col-span-2">
+              {error}
+            </p>
+          )}
         </form>
       )}
     </Card>

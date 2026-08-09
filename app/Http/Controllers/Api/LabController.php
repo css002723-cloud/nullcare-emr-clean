@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\ClinicalNote;
 use App\Models\Encounter;
 use App\Models\LabOrder;
 use App\Models\LabResult;
@@ -11,6 +12,7 @@ use App\Services\AuditLogger;
 use App\Services\IdGenerator;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Carbon\Carbon;
 
 class LabController extends Controller
 {
@@ -23,28 +25,406 @@ class LabController extends Controller
     }
 
     /**
-     * GET /api/lab/orders?status=&encounter_id=
+     * GET /api/lab/orders?status=&encounter_id=&patient_id=
+     *
+     * Returns laboratory orders with:
+     * - Patient name
+     * - Patient ID
+     * - Age
+     * - Sex
+     * - Patient category
+     * - Visit type
+     * - Emergency status
+     * - Doctor's clinical notes
+     * - Latest laboratory result
      */
     public function index(Request $request)
     {
         $query = LabOrder::query();
 
         if ($request->filled('status')) {
-            $query->where('status', $request->query('status'));
-        }
-        if ($request->filled('encounter_id')) {
-            $query->where('encounter_id', $request->query('encounter_id'));
-        }
-        if ($request->filled('patient_id')) {
-            $query->where('patient_id', $request->query('patient_id'));
+            $query->where(
+                'status',
+                $request->query('status')
+            );
         }
 
-        $orders = $query->latest()->get();
+        if ($request->filled('encounter_id')) {
+            $query->where(
+                'encounter_id',
+                $request->query('encounter_id')
+            );
+        }
+
+        if ($request->filled('patient_id')) {
+            $query->where(
+                'patient_id',
+                $request->query('patient_id')
+            );
+        }
+
+        /*
+         * Load patient and encounter.
+         */
+        $orders = $query
+            ->with([
+                'patient',
+                'encounter',
+            ])
+            ->latest()
+            ->get();
 
         $result = $orders->map(function (LabOrder $o) {
+
             $d = $o->toArray();
-            $d['patient_name'] = $o->patient?->full_name;
-            $d['result'] = LabResult::where('lab_order_id', $o->id)->first();
+
+            $patient = $o->patient;
+            $encounter = $o->encounter;
+
+
+            /*
+             * =====================================================
+             * PATIENT NAME
+             * =====================================================
+             */
+
+            $d['patient_name'] =
+                $patient?->full_name;
+
+
+            /*
+             * =====================================================
+             * PATIENT ID
+             * =====================================================
+             *
+             * patient_uid = permanent patient identifier.
+             *
+             * MRN is encounter-specific and is returned separately.
+             */
+
+            $d['patient_id'] =
+                $patient?->patient_uid
+                ?? $patient?->patient_id
+                ?? $patient?->identifier
+                ?? $patient?->mrn
+                ?? $o->patient_id;
+
+            $d['patient_identifier'] =
+                $d['patient_id'];
+
+
+            /*
+             * =====================================================
+             * AGE
+             * =====================================================
+             */
+
+            $d['age'] = null;
+
+            if ($patient?->date_of_birth) {
+
+                try {
+                    $d['age'] = Carbon::parse(
+                        $patient->date_of_birth
+                    )->age;
+                } catch (\Throwable $e) {
+                    $d['age'] = null;
+                }
+            }
+
+            /*
+             * Fallback for patients where DOB is not available.
+             */
+            if (
+                $d['age'] === null &&
+                $patient?->estimated_age !== null
+            ) {
+                $d['age'] =
+                    $patient->estimated_age;
+            }
+
+
+            /*
+             * =====================================================
+             * SEX
+             * =====================================================
+             */
+
+            $d['sex'] =
+                $patient?->sex
+                ?? $patient?->gender
+                ?? null;
+
+
+            /*
+             * =====================================================
+             * PATIENT CATEGORY
+             * =====================================================
+             *
+             * In your EncounterController, visit_type is the
+             * correct field for the patient's visit category.
+             */
+
+            $d['patient_category'] =
+                $encounter?->visit_type
+                ?? $patient?->patient_category
+                ?? $patient?->category
+                ?? 'outpatient';
+
+
+            /*
+             * Visit type separately.
+             */
+
+            $d['visit_type'] =
+                $encounter?->visit_type;
+
+
+            /*
+             * Emergency status.
+             */
+
+            $d['is_emergency'] =
+                (bool) (
+                    $encounter?->is_emergency
+                    ?? false
+                );
+
+
+            /*
+             * Priority.
+             */
+
+            $d['priority'] =
+                $encounter?->priority
+                ?? $o->priority
+                ?? 'routine';
+
+
+            /*
+             * =====================================================
+             * ENCOUNTER INFORMATION
+             * =====================================================
+             */
+
+            $d['encounter_id'] =
+                $encounter?->id
+                ?? $o->encounter_id;
+
+            $d['encounter_number'] =
+                $encounter?->encounter_number;
+
+            /*
+             * MRN belongs to this specific visit.
+             */
+
+            $d['mrn'] =
+                $encounter?->mrn;
+
+
+            /*
+             * =====================================================
+             * DOCTOR'S CLINICAL NOTES
+             * =====================================================
+             *
+             * Clinical notes are stored in ClinicalNote.
+             *
+             * We get the latest doctor's note belonging to
+             * this encounter.
+             */
+
+            $doctorNote = null;
+
+            if ($encounter) {
+
+                $doctorNote = ClinicalNote::where(
+                    'encounter_id',
+                    $encounter->id
+                )
+                    ->where(
+                        'author_role',
+                        'doctor'
+                    )
+                    ->latest()
+                    ->first();
+            }
+
+
+            /*
+             * Build a readable clinical summary.
+             */
+
+            $noteParts = [];
+
+            if (
+                $doctorNote &&
+                !empty($doctorNote->presenting_complaint)
+            ) {
+                $noteParts[] =
+                    "Presenting Complaint: " .
+                    $doctorNote->presenting_complaint;
+            }
+
+            if (
+                $doctorNote &&
+                !empty(
+                    $doctorNote->history_of_presenting_illness
+                )
+            ) {
+                $noteParts[] =
+                    "History of Presenting Illness: " .
+                    $doctorNote->history_of_presenting_illness;
+            }
+
+            if (
+                $doctorNote &&
+                !empty($doctorNote->past_medical_history)
+            ) {
+                $noteParts[] =
+                    "Past Medical History: " .
+                    $doctorNote->past_medical_history;
+            }
+
+            if (
+                $doctorNote &&
+                !empty($doctorNote->medication_history)
+            ) {
+                $noteParts[] =
+                    "Medication History: " .
+                    $doctorNote->medication_history;
+            }
+
+            if (
+                $doctorNote &&
+                !empty($doctorNote->allergy_history)
+            ) {
+                $noteParts[] =
+                    "Allergy History: " .
+                    $doctorNote->allergy_history;
+            }
+
+            if (
+                $doctorNote &&
+                !empty($doctorNote->review_of_systems)
+            ) {
+                $noteParts[] =
+                    "Review of Systems: " .
+                    $doctorNote->review_of_systems;
+            }
+
+            if (
+                $doctorNote &&
+                !empty($doctorNote->examination_findings)
+            ) {
+                $noteParts[] =
+                    "Examination Findings: " .
+                    $doctorNote->examination_findings;
+            }
+
+            if (
+                $doctorNote &&
+                !empty($doctorNote->diagnosis)
+            ) {
+                $noteParts[] =
+                    "Diagnosis: " .
+                    $doctorNote->diagnosis;
+            }
+
+            if (
+                $doctorNote &&
+                !empty($doctorNote->differential_diagnosis)
+            ) {
+                $noteParts[] =
+                    "Differential Diagnosis: " .
+                    $doctorNote->differential_diagnosis;
+            }
+
+            if (
+                $doctorNote &&
+                !empty($doctorNote->plan)
+            ) {
+                $noteParts[] =
+                    "Plan: " .
+                    $doctorNote->plan;
+            }
+
+            if (
+                $doctorNote &&
+                !empty($doctorNote->follow_up_plan)
+            ) {
+                $noteParts[] =
+                    "Follow-up Plan: " .
+                    $doctorNote->follow_up_plan;
+            }
+
+            if (
+                $doctorNote &&
+                !empty($doctorNote->history)
+            ) {
+                $noteParts[] =
+                    "Clinical History: " .
+                    $doctorNote->history;
+            }
+
+            if (
+                $doctorNote &&
+                !empty($doctorNote->body)
+            ) {
+                $noteParts[] =
+                    "Doctor's Note: " .
+                    $doctorNote->body;
+            }
+
+
+            /*
+             * Final note text.
+             */
+
+            $doctorNoteText =
+                !empty($noteParts)
+                    ? implode("\n\n", $noteParts)
+                    : null;
+
+
+            /*
+             * Send note to frontend.
+             */
+
+            $d['doctor_note'] =
+                $doctorNoteText;
+
+            $d['doctor_notes'] =
+                $doctorNoteText;
+
+
+            /*
+             * Note metadata.
+             */
+
+            $d['doctor_note_type'] =
+                $doctorNote?->note_type;
+
+            $d['doctor_id'] =
+                $doctorNote?->author_id;
+
+            $d['doctor_note_date'] =
+                $doctorNote?->created_at;
+
+
+            /*
+             * =====================================================
+             * LATEST LAB RESULT
+             * =====================================================
+             */
+
+            $d['result'] =
+                LabResult::where(
+                    'lab_order_id',
+                    $o->id
+                )
+                    ->latest()
+                    ->first();
+
 
             return $d;
         });
@@ -52,169 +432,653 @@ class LabController extends Controller
         return response()->json($result);
     }
 
+
     /**
      * POST /api/lab/orders
-     * Roles: doctor, nurse, admin
-     * Also creates the parent generic Order row (order_type=lab,
-     * target_department=laboratory) — every lab order is a specialization
-     * of a generic order, matching the reference's dual-table design.
+     *
+     * Roles:
+     * doctor, nurse, admin
      */
     public function store(Request $request)
     {
-        if (! $request->filled('encounter_id') || ! $request->filled('test_code')) {
-            return response()->json(['error' => 'missing_fields', 'message' => 'encounter_id and test_code are required'], 400);
+        if (
+            ! $request->filled('encounter_id') ||
+            ! $request->filled('test_code')
+        ) {
+            return response()->json([
+                'error' => 'missing_fields',
+                'message' =>
+                    'encounter_id and test_code are required'
+            ], 400);
         }
 
-        $encounter = Encounter::findOrFail($request->input('encounter_id'));
-        $loinc = LabOrder::CATALOG[$request->input('test_code')] ?? [];
+        $encounter = Encounter::findOrFail(
+            $request->input('encounter_id')
+        );
 
-        $labOrder = DB::transaction(function () use ($request, $encounter, $loinc) {
-            $genericOrder = Order::create([
-                'encounter_id' => $encounter->id,
-                'patient_id' => $encounter->patient_id,
-                'order_type' => 'lab',
-                'details' => $request->input('test_code'),
-                'priority' => $request->input('priority', 'routine'),
-                'target_department' => 'laboratory',
-                'ordered_by' => $request->user()->id,
-            ]);
+        $loinc =
+            LabOrder::CATALOG[
+                $request->input('test_code')
+            ] ?? [];
 
-            return LabOrder::create([
-                'order_id' => $genericOrder->id,
-                'encounter_id' => $encounter->id,
-                'patient_id' => $encounter->patient_id,
-                'test_code' => $request->input('test_code'),
-                'loinc_code' => $loinc['loinc_code'] ?? null,
-                'loinc_display' => $loinc['loinc_display'] ?? null,
-                'specimen_type' => $request->input('specimen_type'),
-                'barcode' => IdGenerator::barcode(),
-                'priority' => $request->input('priority', 'routine'),
-                'ordered_by' => $request->user()->id,
-                'client_uuid' => $request->input('client_uuid'),
-            ]);
-        });
 
-        AuditLogger::log($request->user(), 'order_lab_test', 'encounter', $encounter->id, $request->input('test_code'));
+        $labOrder = DB::transaction(
+            function () use (
+                $request,
+                $encounter,
+                $loinc
+            ) {
 
-        return response()->json($labOrder, 201);
+                /*
+                 * Generic order.
+                 */
+
+                $genericOrder = Order::create([
+                    'encounter_id' =>
+                        $encounter->id,
+
+                    'patient_id' =>
+                        $encounter->patient_id,
+
+                    'order_type' =>
+                        'lab',
+
+                    'details' =>
+                        $request->input(
+                            'test_code'
+                        ),
+
+                    'priority' =>
+                        $request->input(
+                            'priority',
+                            'routine'
+                        ),
+
+                    'target_department' =>
+                        'laboratory',
+
+                    'ordered_by' =>
+                        $request->user()->id,
+                ]);
+
+
+                /*
+                 * Laboratory order.
+                 */
+
+                return LabOrder::create([
+                    'order_id' =>
+                        $genericOrder->id,
+
+                    'encounter_id' =>
+                        $encounter->id,
+
+                    'patient_id' =>
+                        $encounter->patient_id,
+
+                    'test_code' =>
+                        $request->input(
+                            'test_code'
+                        ),
+
+                    'loinc_code' =>
+                        $loinc['loinc_code']
+                        ?? null,
+
+                    'loinc_display' =>
+                        $loinc['loinc_display']
+                        ?? null,
+
+                    'specimen_type' =>
+                        $request->input(
+                            'specimen_type'
+                        ),
+
+                    'barcode' =>
+                        IdGenerator::barcode(),
+
+                    'priority' =>
+                        $request->input(
+                            'priority',
+                            'routine'
+                        ),
+
+                    'ordered_by' =>
+                        $request->user()->id,
+
+                    'client_uuid' =>
+                        $request->input(
+                            'client_uuid'
+                        ),
+                ]);
+            }
+        );
+
+
+        AuditLogger::log(
+            $request->user(),
+            'order_lab_test',
+            'encounter',
+            $encounter->id,
+            $request->input('test_code')
+        );
+
+
+        return response()->json(
+            $labOrder,
+            201
+        );
     }
+
 
     /**
      * POST /api/lab/orders/{labOrder}/collect
-     * Roles: lab_tech, nurse, admin
      */
-    public function collect(Request $request, LabOrder $labOrder)
-    {
+    public function collect(
+        Request $request,
+        LabOrder $labOrder
+    ) {
         $labOrder->update([
-            'status' => 'collected',
-            'collected_by' => $request->user()->id,
-            'collected_at' => now(),
+            'status' =>
+                'collected',
+
+            'collected_by' =>
+                $request->user()->id,
+
+            'collected_at' =>
+                now(),
         ]);
 
-        AuditLogger::log($request->user(), 'collect_specimen', 'lab_order', $labOrder->id);
+        AuditLogger::log(
+            $request->user(),
+            'collect_specimen',
+            'lab_order',
+            $labOrder->id
+        );
 
-        return response()->json($labOrder);
+        return response()->json(
+            $labOrder
+        );
     }
+
 
     /**
      * POST /api/lab/orders/{labOrder}/receive
-     * Roles: lab_tech, admin
      */
-    public function receive(Request $request, LabOrder $labOrder)
-    {
-        $labOrder->update(['status' => 'received', 'received_at' => now()]);
+    public function receive(
+        Request $request,
+        LabOrder $labOrder
+    ) {
+        $labOrder->update([
+            'status' =>
+                'received',
 
-        AuditLogger::log($request->user(), 'receive_specimen', 'lab_order', $labOrder->id);
+            'received_at' =>
+                now(),
+        ]);
 
-        return response()->json($labOrder);
+        AuditLogger::log(
+            $request->user(),
+            'receive_specimen',
+            'lab_order',
+            $labOrder->id
+        );
+
+        return response()->json(
+            $labOrder
+        );
     }
+
 
     /**
      * POST /api/lab/orders/{labOrder}/result
-     * Roles: lab_tech, admin
      */
-    public function storeResult(Request $request, LabOrder $labOrder)
-    {
+    public function storeResult(
+        Request $request,
+        LabOrder $labOrder
+    ) {
         $result = LabResult::create([
-            'lab_order_id' => $labOrder->id,
-            'result_value' => $request->input('result_value'),
-            'unit' => $request->input('unit'),
-            'reference_range' => $request->input('reference_range'),
-            'is_critical' => $request->input('is_critical', false),
-            'is_abnormal' => $request->input('is_abnormal', false),
-            'interpretation' => $request->input('interpretation'),
-            'entered_by' => $request->user()->id,
-            'client_uuid' => $request->input('client_uuid'),
+            'lab_order_id' =>
+                $labOrder->id,
+
+            'result_value' =>
+                $request->input(
+                    'result_value'
+                ),
+
+            'unit' =>
+                $request->input('unit'),
+
+            'reference_range' =>
+                $request->input(
+                    'reference_range'
+                ),
+
+            'is_critical' =>
+                $request->input(
+                    'is_critical',
+                    false
+                ),
+
+            'is_abnormal' =>
+                $request->input(
+                    'is_abnormal',
+                    false
+                ),
+
+            'interpretation' =>
+                $request->input(
+                    'interpretation'
+                ),
+
+            'entered_by' =>
+                $request->user()->id,
+
+            'client_uuid' =>
+                $request->input(
+                    'client_uuid'
+                ),
         ]);
 
-        $labOrder->update(['status' => 'resulted']);
+        $labOrder->update([
+            'status' =>
+                'resulted'
+        ]);
 
-        AuditLogger::log($request->user(), 'enter_lab_result', 'lab_order', $labOrder->id, 'critical='.($result->is_critical ? 'true' : 'false'));
+        AuditLogger::log(
+            $request->user(),
+            'enter_lab_result',
+            'lab_order',
+            $labOrder->id,
+            'critical=' .
+                (
+                    $result->is_critical
+                        ? 'true'
+                        : 'false'
+                )
+        );
 
-        return response()->json($result, 201);
+        return response()->json(
+            $result,
+            201
+        );
     }
+
 
     /**
      * POST /api/lab/results/{labResult}/verify
-     * Roles: lab_tech, admin
      */
-    public function verify(Request $request, LabResult $labResult)
-    {
-        $labResult->update(['verified_by' => $request->user()->id, 'verified_at' => now()]);
-        LabOrder::where('id', $labResult->lab_order_id)->update(['status' => 'verified']);
+    public function verify(
+        Request $request,
+        LabResult $labResult
+    ) {
+        $labResult->update([
+            'verified_by' =>
+                $request->user()->id,
 
-        AuditLogger::log($request->user(), 'verify_lab_result', 'lab_result', $labResult->id);
+            'verified_at' =>
+                now(),
+        ]);
 
-        return response()->json($labResult);
+        LabOrder::where(
+            'id',
+            $labResult->lab_order_id
+        )->update([
+            'status' =>
+                'verified'
+        ]);
+
+        AuditLogger::log(
+            $request->user(),
+            'verify_lab_result',
+            'lab_result',
+            $labResult->id
+        );
+
+        return response()->json(
+            $labResult
+        );
     }
+
 
     /**
      * POST /api/lab/results/{labResult}/acknowledge-critical
-     * Roles: doctor, nurse, admin
      */
-    public function acknowledgeCritical(Request $request, LabResult $labResult)
-    {
-        $labResult->update(['critical_alert_acknowledged' => true]);
+    public function acknowledgeCritical(
+        Request $request,
+        LabResult $labResult
+    ) {
+        $labResult->update([
+            'critical_alert_acknowledged' =>
+                true
+        ]);
 
-        AuditLogger::log($request->user(), 'acknowledge_critical_result', 'lab_result', $labResult->id);
+        AuditLogger::log(
+            $request->user(),
+            'acknowledge_critical_result',
+            'lab_result',
+            $labResult->id
+        );
 
-        return response()->json($labResult);
+        return response()->json(
+            $labResult
+        );
     }
+
 
     /**
      * GET /api/lab/critical-unacknowledged
-     * Return enriched payload including the lab order and patient info so UI can link.
      */
     public function criticalUnacknowledged()
     {
-        $results = LabResult::where('is_critical', true)
-            ->where('critical_alert_acknowledged', false)
-            ->with('labOrder.patient')
+        $results = LabResult::where(
+            'is_critical',
+            true
+        )
+            ->where(
+                'critical_alert_acknowledged',
+                false
+            )
+            ->with([
+                'labOrder.patient',
+                'labOrder.encounter',
+            ])
             ->get()
             ->map(function (LabResult $r) {
-                $lo = $r->labOrder;
+
+                $lo =
+                    $r->labOrder;
+
+                $patient =
+                    $lo?->patient;
+
+                $encounter =
+                    $lo?->encounter;
+
+
+                /*
+                 * Age.
+                 */
+
+                $age = null;
+
+                if ($patient?->date_of_birth) {
+
+                    try {
+                        $age = Carbon::parse(
+                            $patient->date_of_birth
+                        )->age;
+                    } catch (\Throwable $e) {
+                        $age = null;
+                    }
+                }
+
+                if (
+                    $age === null &&
+                    $patient?->estimated_age !== null
+                ) {
+                    $age =
+                        $patient->estimated_age;
+                }
+
+
+                /*
+                 * Latest doctor's note.
+                 */
+
+                $doctorNote = null;
+
+                if ($encounter) {
+
+                    $doctorNote =
+                        ClinicalNote::where(
+                            'encounter_id',
+                            $encounter->id
+                        )
+                            ->where(
+                                'author_role',
+                                'doctor'
+                            )
+                            ->latest()
+                            ->first();
+                }
+
+
+                /*
+                 * Build note.
+                 */
+
+                $noteParts = [];
+
+                if (
+                    $doctorNote &&
+                    !empty(
+                        $doctorNote->presenting_complaint
+                    )
+                ) {
+                    $noteParts[] =
+                        "Presenting Complaint: " .
+                        $doctorNote->presenting_complaint;
+                }
+
+                if (
+                    $doctorNote &&
+                    !empty(
+                        $doctorNote->history_of_presenting_illness
+                    )
+                ) {
+                    $noteParts[] =
+                        "History of Presenting Illness: " .
+                        $doctorNote->history_of_presenting_illness;
+                }
+
+                if (
+                    $doctorNote &&
+                    !empty(
+                        $doctorNote->examination_findings
+                    )
+                ) {
+                    $noteParts[] =
+                        "Examination Findings: " .
+                        $doctorNote->examination_findings;
+                }
+
+                if (
+                    $doctorNote &&
+                    !empty(
+                        $doctorNote->diagnosis
+                    )
+                ) {
+                    $noteParts[] =
+                        "Diagnosis: " .
+                        $doctorNote->diagnosis;
+                }
+
+                if (
+                    $doctorNote &&
+                    !empty(
+                        $doctorNote->differential_diagnosis
+                    )
+                ) {
+                    $noteParts[] =
+                        "Differential Diagnosis: " .
+                        $doctorNote->differential_diagnosis;
+                }
+
+                if (
+                    $doctorNote &&
+                    !empty(
+                        $doctorNote->plan
+                    )
+                ) {
+                    $noteParts[] =
+                        "Plan: " .
+                        $doctorNote->plan;
+                }
+
+                if (
+                    $doctorNote &&
+                    !empty(
+                        $doctorNote->follow_up_plan
+                    )
+                ) {
+                    $noteParts[] =
+                        "Follow-up Plan: " .
+                        $doctorNote->follow_up_plan;
+                }
+
+                if (
+                    $doctorNote &&
+                    !empty(
+                        $doctorNote->body
+                    )
+                ) {
+                    $noteParts[] =
+                        "Doctor's Note: " .
+                        $doctorNote->body;
+                }
+
+
+                $doctorNoteText =
+                    !empty($noteParts)
+                        ? implode(
+                            "\n\n",
+                            $noteParts
+                        )
+                        : null;
+
+
                 return [
-                    'id' => $r->id,
-                    'lab_order_id' => $r->lab_order_id,
-                    'result_value' => $r->result_value,
-                    'unit' => $r->unit,
-                    'reference_range' => $r->reference_range,
-                    'interpretation' => $r->interpretation,
-                    'is_critical' => (bool) $r->is_critical,
-                    'critical_alert_acknowledged' => (bool) $r->critical_alert_acknowledged,
-                    'entered_by' => $r->entered_by,
-                    'lab_order' => $lo ? [
-                        'id' => $lo->id,
-                        'encounter_id' => $lo->encounter_id,
-                        'patient_id' => $lo->patient_id,
-                        'loinc_display' => $lo->loinc_display,
-                        'test_code' => $lo->test_code,
-                        'barcode' => $lo->barcode,
-                    ] : null,
-                    'patient_name' => $lo?->patient?->full_name,
+
+                    'id' =>
+                        $r->id,
+
+                    'lab_order_id' =>
+                        $r->lab_order_id,
+
+                    'result_value' =>
+                        $r->result_value,
+
+                    'unit' =>
+                        $r->unit,
+
+                    'reference_range' =>
+                        $r->reference_range,
+
+                    'interpretation' =>
+                        $r->interpretation,
+
+                    'is_critical' =>
+                        (bool)
+                        $r->is_critical,
+
+                    'critical_alert_acknowledged' =>
+                        (bool)
+                        $r->critical_alert_acknowledged,
+
+                    'entered_by' =>
+                        $r->entered_by,
+
+
+                    /*
+                     * Lab order.
+                     */
+
+                    'lab_order' =>
+                        $lo
+                            ? [
+                                'id' =>
+                                    $lo->id,
+
+                                'encounter_id' =>
+                                    $lo->encounter_id,
+
+                                'patient_id' =>
+                                    $lo->patient_id,
+
+                                'loinc_display' =>
+                                    $lo->loinc_display,
+
+                                'test_code' =>
+                                    $lo->test_code,
+
+                                'barcode' =>
+                                    $lo->barcode,
+                            ]
+                            : null,
+
+
+                    /*
+                     * Patient information.
+                     */
+
+                    'patient_name' =>
+                        $patient?->full_name,
+
+                    'patient_id' =>
+                        $patient?->patient_uid
+                        ?? $patient?->patient_id
+                        ?? $patient?->identifier
+                        ?? $patient?->mrn
+                        ?? $lo?->patient_id,
+
+                    'age' =>
+                        $age,
+
+                    'sex' =>
+                        $patient?->sex
+                        ?? $patient?->gender,
+
+                    'patient_category' =>
+                        $encounter?->visit_type
+                        ?? $patient?->patient_category
+                        ?? $patient?->category
+                        ?? 'outpatient',
+
+
+                    /*
+                     * Encounter information.
+                     */
+
+                    'encounter_number' =>
+                        $encounter?->encounter_number,
+
+                    'mrn' =>
+                        $encounter?->mrn,
+
+                    'visit_type' =>
+                        $encounter?->visit_type,
+
+                    'is_emergency' =>
+                        (bool) (
+                            $encounter?->is_emergency
+                            ?? false
+                        ),
+
+
+                    /*
+                     * Doctor's notes.
+                     */
+
+                    'doctor_note' =>
+                        $doctorNoteText,
+
+                    'doctor_notes' =>
+                        $doctorNoteText,
+
+                    'doctor_note_type' =>
+                        $doctorNote?->note_type,
+
+                    'doctor_id' =>
+                        $doctorNote?->author_id,
+
+                    'doctor_note_date' =>
+                        $doctorNote?->created_at,
                 ];
             });
 
-        return response()->json($results);
+        return response()->json(
+            $results
+        );
     }
 }
