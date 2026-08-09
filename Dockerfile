@@ -6,14 +6,17 @@ RUN npm ci
 COPY . .
 RUN npm run build
 
-# Stage 2: Serve PHP & Laravel (Updated to PHP 8.3)
+# Stage 2: Serve PHP & Laravel (PHP 8.3)
 FROM php:8.3-cli-alpine
 
-# Install MySQL PHP extensions & system dependencies
+# Install required system dependencies & PHP extensions for Laravel
 RUN apk add --no-cache \
     oniguruma-dev \
+    libxml2-dev \
+    libpng-dev \
+    libzip-dev \
     zip unzip git \
-    && docker-php-ext-install pdo pdo_mysql
+    && docker-php-ext-install pdo pdo_mysql mbstring xml bcmath gd zip
 
 # Install Composer
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
@@ -25,7 +28,7 @@ COPY . .
 COPY --from=frontend /app/public/build ./public/build
 
 # Install PHP production dependencies
-RUN composer install --no-dev --optimize-autoloader
+RUN composer install --no-dev --optimize-autoloader --ignore-platform-reqs
 
 # Set storage and cache permissions
 RUN chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache \
