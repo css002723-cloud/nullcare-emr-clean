@@ -1,4 +1,4 @@
-# Stage 1: Build React Assets
+# Stage 1: Build React/Vite assets
 FROM node:20-alpine AS frontend
 WORKDIR /app
 COPY package*.json ./
@@ -6,10 +6,10 @@ RUN npm ci
 COPY . .
 RUN npm run build
 
-# Stage 2: Serve PHP & Laravel
-FROM php:8.2-cli-alpine
+# Stage 2: Serve PHP & Laravel (Updated to PHP 8.3)
+FROM php:8.3-cli-alpine
 
-# Install MySQL extension and system dependencies
+# Install MySQL PHP extensions & system dependencies
 RUN apk add --no-cache \
     oniguruma-dev \
     zip unzip git \
@@ -20,11 +20,11 @@ COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
 WORKDIR /var/www/html
 
-# Copy Laravel files and built React assets from Stage 1
+# Copy Laravel code & built React assets from Stage 1
 COPY . .
 COPY --from=frontend /app/public/build ./public/build
 
-# Install production PHP dependencies
+# Install PHP production dependencies
 RUN composer install --no-dev --optimize-autoloader
 
 # Set storage and cache permissions
@@ -33,5 +33,5 @@ RUN chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cac
 
 EXPOSE 10000
 
-# Cache config, run database migrations, and launch server
+# Cache config, run database migrations, and launch app on $PORT
 CMD ["sh", "-c", "php artisan config:cache && php artisan route:cache && php artisan view:cache && php artisan migrate --force && php artisan serve --host=0.0.0.0 --port=${PORT:-10000}"]
