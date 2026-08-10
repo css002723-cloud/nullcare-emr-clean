@@ -53,7 +53,7 @@ Route::middleware('auth:sanctum')->group(function () {
     });
 
     // ---- Patients ----
-    Route::middleware('role:reception,nurse,doctor,admin')->group(function () {
+    Route::middleware('role:reception,nurse,doctor,admin,billing')->group(function () {
         Route::get('/patients', [PatientController::class, 'index']);
         Route::get('/patients/{patient}', [PatientController::class, 'show']);
         Route::get('/patients/by-uid/{uid}', [PatientController::class, 'showByUid']);

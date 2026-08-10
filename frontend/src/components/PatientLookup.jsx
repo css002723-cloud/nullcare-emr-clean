@@ -18,6 +18,7 @@ export default function PatientLookup({ requireEncounter = false, onSelect, onCl
   const [results, setResults] = useState([]);
   const [searching, setSearching] = useState(false);
   const [showResults, setShowResults] = useState(false);
+  const [fetchError, setFetchError] = useState(false);
   const [selectedPatient, setSelectedPatient] = useState(null);
   const [encounters, setEncounters] = useState([]);
   const [selectedEncounterId, setSelectedEncounterId] = useState("");
@@ -38,6 +39,7 @@ export default function PatientLookup({ requireEncounter = false, onSelect, onCl
 
   async function loadPatients(query = "") {
     setSearching(true);
+    setFetchError(false);
     try {
       const params = { status: "all" };
       if (query.trim()) {
@@ -46,8 +48,10 @@ export default function PatientLookup({ requireEncounter = false, onSelect, onCl
       const res = await api.get("/patients", { params });
       setResults(res.data || []);
       setShowResults(true);
-    } catch {
+    } catch (err) {
+      console.error('Patient lookup failed', err);
       setResults([]);
+      setFetchError(true);
       setShowResults(true);
     } finally {
       setSearching(false);
@@ -239,15 +243,30 @@ export default function PatientLookup({ requireEncounter = false, onSelect, onCl
             <p className="text-xs text-ink/40 px-3 py-3">Searching…</p>
           ) : results.length === 0 ? (
             <div className="px-3 py-3 space-y-2">
-              <p className="text-xs text-ink/40">No matching patients.</p>
-              {!query.trim() && (
-                <button
-                  type="button"
-                  onClick={() => loadPatients()}
-                  className="text-sm text-teal-700 font-medium"
-                >
-                  Refresh patient list
-                </button>
+              {fetchError ? (
+                <>
+                  <p className="text-xs text-alert">Couldn't load patients — check network or permissions.</p>
+                  <button
+                    type="button"
+                    onClick={() => loadPatients()}
+                    className="text-sm text-teal-700 font-medium"
+                  >
+                    Retry
+                  </button>
+                </>
+              ) : (
+                <>
+                  <p className="text-xs text-ink/40">No matching patients.</p>
+                  {!query.trim() && (
+                    <button
+                      type="button"
+                      onClick={() => loadPatients()}
+                      className="text-sm text-teal-700 font-medium"
+                    >
+                      Refresh patient list
+                    </button>
+                  )}
+                </>
               )}
             </div>
           ) : (
