@@ -743,6 +743,7 @@ class ComposerStaticInite814bc40da65169ab6abf5aee35ac01c
 
     public static $classMap = array (
         'App\\Http\\Controllers\\Api\\AdmissionController' => __DIR__ . '/../..' . '/app/Http/Controllers/Api/AdmissionController.php',
+        'App\\Http\\Controllers\\Api\\AppointmentController' => __DIR__ . '/../..' . '/app/Http/Controllers/Api/AppointmentController.php',
         'App\\Http\\Controllers\\Api\\AuditController' => __DIR__ . '/../..' . '/app/Http/Controllers/Api/AuditController.php',
         'App\\Http\\Controllers\\Api\\AuthController' => __DIR__ . '/../..' . '/app/Http/Controllers/Api/AuthController.php',
         'App\\Http\\Controllers\\Api\\BillingController' => __DIR__ . '/../..' . '/app/Http/Controllers/Api/BillingController.php',
@@ -812,6 +813,7 @@ class ComposerStaticInite814bc40da65169ab6abf5aee35ac01c
         'App\\Http\\Resources\\UserResource' => __DIR__ . '/../..' . '/app/Http/Resources/UserResource.php',
         'App\\Http\\Resources\\VitalSignResource' => __DIR__ . '/../..' . '/app/Http/Resources/VitalSignResource.php',
         'App\\Models\\Allergy' => __DIR__ . '/../..' . '/app/Models/Allergy.php',
+        'App\\Models\\Appointment' => __DIR__ . '/../..' . '/app/Models/Appointment.php',
         'App\\Models\\AuditLog' => __DIR__ . '/../..' . '/app/Models/AuditLog.php',
         'App\\Models\\ClinicalNote' => __DIR__ . '/../..' . '/app/Models/ClinicalNote.php',
         'App\\Models\\DialysisSession' => __DIR__ . '/../..' . '/app/Models/DialysisSession.php',
@@ -844,6 +846,7 @@ class ComposerStaticInite814bc40da65169ab6abf5aee35ac01c
         'App\\Providers\\AppServiceProvider' => __DIR__ . '/../..' . '/app/Providers/AppServiceProvider.php',
         'App\\Services\\AllergyChecker' => __DIR__ . '/../..' . '/app/Services/AllergyChecker.php',
         'App\\Services\\AuditLogger' => __DIR__ . '/../..' . '/app/Services/AuditLogger.php',
+        'App\\Services\\ChargeCatalog' => __DIR__ . '/../..' . '/app/Services/ChargeCatalog.php',
         'App\\Services\\ClinicalDecisionSupport' => __DIR__ . '/../..' . '/app/Services/ClinicalDecisionSupport.php',
         'App\\Services\\DiagnosisSuggestionService' => __DIR__ . '/../..' . '/app/Services/DiagnosisSuggestionService.php',
         'App\\Services\\IdGenerator' => __DIR__ . '/../..' . '/app/Services/IdGenerator.php',
@@ -1008,6 +1011,7 @@ class ComposerStaticInite814bc40da65169ab6abf5aee35ac01c
         'Database\\Seeders\\DatabaseSeeder' => __DIR__ . '/../..' . '/database/seeders/DatabaseSeeder.php',
         'Database\\Seeders\\DemoClinicalSeeder' => __DIR__ . '/../..' . '/database/seeders/DemoClinicalSeeder.php',
         'Database\\Seeders\\DrugStockSeeder' => __DIR__ . '/../..' . '/database/seeders/DrugStockSeeder.php',
+        'Database\\Seeders\\InventoryEquipmentSeeder' => __DIR__ . '/../..' . '/database/seeders/InventoryEquipmentSeeder.php',
         'Database\\Seeders\\TestUserSeeder' => __DIR__ . '/../..' . '/database/seeders/TestUserSeeder.php',
         'Database\\Seeders\\UsersSeeder' => __DIR__ . '/../..' . '/database/seeders/UsersSeeder.php',
         'DeepCopy\\DeepCopy' => __DIR__ . '/..' . '/myclabs/deep-copy/src/DeepCopy/DeepCopy.php',
