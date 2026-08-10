@@ -59,7 +59,7 @@ export default function App() {
           <Route path="/icu/:encounterId" element={<ProtectedRoute roles={["nurse", "doctor"]}><ICUPatient /></ProtectedRoute>} />
           <Route path="/dialysis" element={<ProtectedRoute roles={["dialysis_tech", "doctor", "nurse"]}><Dialysis /></ProtectedRoute>} />
           <Route path="/billing" element={<ProtectedRoute roles={["billing"]}><Billing /></ProtectedRoute>} />
-          <Route path="/inventory" element={<ProtectedRoute roles={["pharmacist", "lab_tech", "radiologist", "nurse", "dialysis_tech"]}><Inventory /></ProtectedRoute>} />
+          <Route path="/inventory" element={<ProtectedRoute roles={["pharmacist", "lab_tech", "radiologist", "nurse", "dialysis_tech", "records_officer"]}><Inventory /></ProtectedRoute>} />
           <Route path="/research" element={<ProtectedRoute roles={["records_officer", "admin"]}><Research /></ProtectedRoute>} />
 
           <Route path="/admin/users" element={<ProtectedRoute roles={["admin"]}><AdminUsers /></ProtectedRoute>} />

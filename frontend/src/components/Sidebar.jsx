@@ -266,6 +266,11 @@ const NAV_BY_ROLE = {
       icon: Users,
     },
     {
+      to: "/inventory",
+      label: "Inventory & Equipment",
+      icon: Package,
+    },
+    {
       to: "/research",
       label: "Research Export",
       icon: FileSearch,
