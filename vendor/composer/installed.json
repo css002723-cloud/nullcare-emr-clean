@@ -10486,7 +10486,6 @@
         "composer/pcre",
         "composer/xdebug-handler",
         "doctrine/deprecations",
-        "fakerphp/faker",
         "fidry/cpu-core-counter",
         "filp/whoops",
         "hamcrest/hamcrest-php",

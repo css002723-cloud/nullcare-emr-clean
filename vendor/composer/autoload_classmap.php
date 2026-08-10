@@ -7,6 +7,7 @@ $baseDir = dirname($vendorDir);
 
 return array(
     'App\\Http\\Controllers\\Api\\AdmissionController' => $baseDir . '/app/Http/Controllers/Api/AdmissionController.php',
+    'App\\Http\\Controllers\\Api\\AppointmentController' => $baseDir . '/app/Http/Controllers/Api/AppointmentController.php',
     'App\\Http\\Controllers\\Api\\AuditController' => $baseDir . '/app/Http/Controllers/Api/AuditController.php',
     'App\\Http\\Controllers\\Api\\AuthController' => $baseDir . '/app/Http/Controllers/Api/AuthController.php',
     'App\\Http\\Controllers\\Api\\BillingController' => $baseDir . '/app/Http/Controllers/Api/BillingController.php',
@@ -76,6 +77,7 @@ return array(
     'App\\Http\\Resources\\UserResource' => $baseDir . '/app/Http/Resources/UserResource.php',
     'App\\Http\\Resources\\VitalSignResource' => $baseDir . '/app/Http/Resources/VitalSignResource.php',
     'App\\Models\\Allergy' => $baseDir . '/app/Models/Allergy.php',
+    'App\\Models\\Appointment' => $baseDir . '/app/Models/Appointment.php',
     'App\\Models\\AuditLog' => $baseDir . '/app/Models/AuditLog.php',
     'App\\Models\\ClinicalNote' => $baseDir . '/app/Models/ClinicalNote.php',
     'App\\Models\\DialysisSession' => $baseDir . '/app/Models/DialysisSession.php',
@@ -108,6 +110,7 @@ return array(
     'App\\Providers\\AppServiceProvider' => $baseDir . '/app/Providers/AppServiceProvider.php',
     'App\\Services\\AllergyChecker' => $baseDir . '/app/Services/AllergyChecker.php',
     'App\\Services\\AuditLogger' => $baseDir . '/app/Services/AuditLogger.php',
+    'App\\Services\\ChargeCatalog' => $baseDir . '/app/Services/ChargeCatalog.php',
     'App\\Services\\ClinicalDecisionSupport' => $baseDir . '/app/Services/ClinicalDecisionSupport.php',
     'App\\Services\\DiagnosisSuggestionService' => $baseDir . '/app/Services/DiagnosisSuggestionService.php',
     'App\\Services\\IdGenerator' => $baseDir . '/app/Services/IdGenerator.php',
@@ -272,6 +275,7 @@ return array(
     'Database\\Seeders\\DatabaseSeeder' => $baseDir . '/database/seeders/DatabaseSeeder.php',
     'Database\\Seeders\\DemoClinicalSeeder' => $baseDir . '/database/seeders/DemoClinicalSeeder.php',
     'Database\\Seeders\\DrugStockSeeder' => $baseDir . '/database/seeders/DrugStockSeeder.php',
+    'Database\\Seeders\\InventoryEquipmentSeeder' => $baseDir . '/database/seeders/InventoryEquipmentSeeder.php',
     'Database\\Seeders\\TestUserSeeder' => $baseDir . '/database/seeders/TestUserSeeder.php',
     'Database\\Seeders\\UsersSeeder' => $baseDir . '/database/seeders/UsersSeeder.php',
     'DeepCopy\\DeepCopy' => $vendorDir . '/myclabs/deep-copy/src/DeepCopy/DeepCopy.php',

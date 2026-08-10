@@ -3,7 +3,7 @@
         'name' => 'laravel/laravel',
         'pretty_version' => 'dev-main',
         'version' => 'dev-main',
-        'reference' => '6e0a391a352895cf9ececc469bffe6339f3639e6',
+        'reference' => '603257ccd39ebdd69ad8db520969879102ab4038',
         'type' => 'project',
         'install_path' => __DIR__ . '/../../',
         'aliases' => array(),
@@ -164,7 +164,7 @@
             'type' => 'library',
             'install_path' => __DIR__ . '/../fakerphp/faker',
             'aliases' => array(),
-            'dev_requirement' => true,
+            'dev_requirement' => false,
         ),
         'fidry/cpu-core-counter' => array(
             'pretty_version' => '1.3.0',
@@ -499,7 +499,7 @@
         'laravel/laravel' => array(
             'pretty_version' => 'dev-main',
             'version' => 'dev-main',
-            'reference' => '6e0a391a352895cf9ececc469bffe6339f3639e6',
+            'reference' => '603257ccd39ebdd69ad8db520969879102ab4038',
             'type' => 'project',
             'install_path' => __DIR__ . '/../../',
             'aliases' => array(),
