@@ -8,13 +8,14 @@ export default defineConfig(({ command }) => ({
    *   http://localhost:5173/
    *
    * Production:
-   *   https://your-domain.com/app/
+   *   served from the container root (/) by Apache in Docker
    */
-  base: command === "build" ? "/app/" : "/",
+  base: "/",
 
   build: {
-    // Laravel serves the compiled React application from public/app
-    outDir: "../public/app",
+    // Output the frontend build into ./dist inside the frontend workspace
+    // so the Docker frontend-builder stage produces /app/dist
+    outDir: "dist",
 
     // Remove the previous build before creating a new one
     emptyOutDir: true,
@@ -32,16 +33,14 @@ export default defineConfig(({ command }) => ({
         globPatterns: ["**/*.{js,css,html,ico,png,svg,woff2}"],
 
         /*
-         * Laravel/React application entry point in production.
+         * Application entry point in production.
          */
-        navigateFallback: "/app/index.html",
+        navigateFallback: "/index.html",
 
         runtimeCaching: [
           {
             /*
              * Cache API requests using NetworkFirst.
-             * This allows the application to continue working
-             * with cached API responses when connectivity is poor.
              */
             urlPattern: ({ url }) =>
               url.pathname.startsWith("/api/"),
@@ -79,16 +78,16 @@ export default defineConfig(({ command }) => ({
         /*
          * Production application entry point
          */
-        start_url: "/app/",
+        start_url: "/",
 
         icons: [
           {
-            src: "/app/icon-192.png",
+            src: "/icon-192.png",
             sizes: "192x192",
             type: "image/png",
           },
           {
-            src: "/app/icon-512.png",
+            src: "/icon-512.png",
             sizes: "512x512",
             type: "image/png",
           },
@@ -105,8 +104,7 @@ export default defineConfig(({ command }) => ({
     port: 5173,
 
     /*
-     * Forward React API requests to Laravel
-     * while developing locally.
+     * Forward React API requests to Laravel while developing locally.
      */
     proxy: {
       "/api": {
