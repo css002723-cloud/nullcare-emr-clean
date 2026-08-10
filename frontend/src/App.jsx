@@ -25,7 +25,7 @@ import AdminUsers from "./pages/AdminUsers";
 import AdminAudit from "./pages/AdminAudit";
 import Messages from "./pages/Messages";
 import Inventory from "./pages/Inventory";
-import Settings from "./pages/Settings";
+import Settings from "./pages/settings";
 import Appointments from "./pages/appointments";
 
 export default function App() {
