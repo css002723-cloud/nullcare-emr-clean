@@ -17,49 +17,49 @@ class PatientFactory extends Factory
 
     public function definition(): array
     {
-        $sex = $this->faker->randomElement(['male', 'female']);
-        $givenName = $sex === 'male' ? $this->faker->firstNameMale() : $this->faker->firstNameFemale();
+        $sex = fake()->randomElement(['male', 'female']);
+        $givenName = $sex === 'male' ? fake()->firstNameMale() : fake()->firstNameFemale();
 
         return [
             // Matches generate_patient_uid() in the Python reference: pure
             // random, no year/hospital prefix, no confusable characters.
             'patient_uid' => strtoupper(Str::random(9)),
-            'national_id' => $this->faker->boolean(70) ? strtoupper($this->faker->bothify('??######')) : null,
+            'national_id' => fake()->boolean(70) ? strtoupper(fake()->bothify('??######')) : null,
             'given_name' => $givenName,
-            'family_name' => $this->faker->lastName(),
+            'family_name' => fake()->lastName(),
             'sex' => $sex,
-            'date_of_birth' => $this->faker->boolean(85)
-                ? $this->faker->dateTimeBetween('-90 years', '-1 years')->format('Y-m-d')
+            'date_of_birth' => fake()->boolean(85)
+                ? fake()->dateTimeBetween('-90 years', '-1 years')->format('Y-m-d')
                 : null,
-            'estimated_age' => $this->faker->boolean(15) ? $this->faker->numberBetween(1, 90) : null,
-            'phone' => $this->faker->boolean(80) ? '09'.$this->faker->numberBetween(10000000, 99999999) : null,
-            'village' => $this->faker->boolean(70) ? $this->faker->citySuffix().' Village' : null,
-            'traditional_authority' => $this->faker->randomElement($this->traditionalAuthorities),
-            'district' => $this->faker->randomElement($this->districts),
-            'region' => $this->faker->randomElement($this->regions),
-            'occupation' => $this->faker->boolean(60) ? $this->faker->jobTitle() : null,
-            'patient_category' => $this->faker->randomElement([
+            'estimated_age' => fake()->boolean(15) ? fake()->numberBetween(1, 90) : null,
+            'phone' => fake()->boolean(80) ? '09'.fake()->numberBetween(10000000, 99999999) : null,
+            'village' => fake()->boolean(70) ? fake()->citySuffix().' Village' : null,
+            'traditional_authority' => fake()->randomElement($this->traditionalAuthorities),
+            'district' => fake()->randomElement($this->districts),
+            'region' => fake()->randomElement($this->regions),
+            'occupation' => fake()->boolean(60) ? fake()->jobTitle() : null,
+            'patient_category' => fake()->randomElement([
                 'outpatient', 'outpatient', 'outpatient',
                 'inpatient', 'emergency', 'student', 'staff', 'private', 'referred',
             ]),
-            'guardian_name' => $this->faker->boolean(20) ? $this->faker->name() : null,
-            'guardian_phone' => $this->faker->boolean(20) ? '09'.$this->faker->numberBetween(10000000, 99999999) : null,
-            'guardian_relationship' => $this->faker->boolean(20) ? $this->faker->randomElement(['mother', 'father', 'spouse', 'sibling', 'guardian']) : null,
+            'guardian_name' => fake()->boolean(20) ? fake()->name() : null,
+            'guardian_phone' => fake()->boolean(20) ? '09'.fake()->numberBetween(10000000, 99999999) : null,
+            'guardian_relationship' => fake()->boolean(20) ? fake()->randomElement(['mother', 'father', 'spouse', 'sibling', 'guardian']) : null,
             'consent_care' => true,
-            'consent_teaching' => $this->faker->boolean(30),
-            'consent_research' => $this->faker->boolean(15),
+            'consent_teaching' => fake()->boolean(30),
+            'consent_research' => fake()->boolean(15),
             'is_deceased' => false,
-            'registered_by' => User::inRandomOrder()->value('id'),
+            'registered_by' => User::inRandomOrder()->value('id') ?? User::factory(),
         ];
     }
 
     public function child(): static
     {
         return $this->state(fn () => [
-            'date_of_birth' => $this->faker->dateTimeBetween('-11 years', '-1 years')->format('Y-m-d'),
-            'guardian_name' => $this->faker->name(),
-            'guardian_phone' => '09'.$this->faker->numberBetween(10000000, 99999999),
-            'guardian_relationship' => $this->faker->randomElement(['mother', 'father', 'guardian']),
+            'date_of_birth' => fake()->dateTimeBetween('-11 years', '-1 years')->format('Y-m-d'),
+            'guardian_name' => fake()->name(),
+            'guardian_phone' => '09'.fake()->numberBetween(10000000, 99999999),
+            'guardian_relationship' => fake()->randomElement(['mother', 'father', 'guardian']),
         ]);
     }
 
@@ -72,7 +72,7 @@ class PatientFactory extends Factory
     public function adult(): static
     {
         return $this->state(fn () => [
-            'date_of_birth' => $this->faker->dateTimeBetween('-64 years', '-18 years')->format('Y-m-d'),
+            'date_of_birth' => fake()->dateTimeBetween('-64 years', '-18 years')->format('Y-m-d'),
             'estimated_age' => null,
         ]);
     }
@@ -81,7 +81,7 @@ class PatientFactory extends Factory
     public function elderly(): static
     {
         return $this->state(fn () => [
-            'date_of_birth' => $this->faker->dateTimeBetween('-95 years', '-65 years')->format('Y-m-d'),
+            'date_of_birth' => fake()->dateTimeBetween('-95 years', '-65 years')->format('Y-m-d'),
             'estimated_age' => null,
         ]);
     }
@@ -96,7 +96,7 @@ class PatientFactory extends Factory
         return $this->state(fn () => [
             'national_id' => null,
             'date_of_birth' => null,
-            'estimated_age' => $this->faker->numberBetween(1, 90),
+            'estimated_age' => fake()->numberBetween(1, 90),
             'phone' => null,
             'village' => null,
         ]);
