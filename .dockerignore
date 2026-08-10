@@ -1,5 +1,8 @@
-/node_modules
-/vendor
-/public/build
+node_modules
+frontend/node_modules
+vendor
 .env
 .git
+storage/*.key
+public/dist
+frontend/dist
