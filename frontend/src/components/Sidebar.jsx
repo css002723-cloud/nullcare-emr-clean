@@ -41,7 +41,7 @@ const NAV_BY_ROLE = {
     { to: "/laboratory", label: "Laboratory", icon: FlaskConical },
 
     // Uncomment when Imaging is ready
-    // { to: "/imaging", label: "Imaging", icon: ScanLine },
+    { to: "/imaging", label: "Imaging", icon: ScanLine },
 
     { to: "/pharmacy", label: "Pharmacy", icon: Pill },
     { to: "/wards", label: "Wards", icon: BedDouble },
@@ -405,7 +405,7 @@ export default function Sidebar({ open, onClose }) {
           <div className="min-w-0 flex-1">
 
             <img
-              src="/nullcare.png"
+              src={`${import.meta.env.BASE_URL}nullcare.png`}
               alt="NullCare logo"
               className="
                 h-8
