@@ -118,7 +118,7 @@ function CurrencyInput({
         placeholder={placeholder}
         value={value}
         onChange={onChange}
-        className="border-0 rounded-none focus:ring-0 focus:border-0"
+        className="flex-1 min-w-0 border-0 rounded-none focus:ring-0 focus:border-0"
       />
     </div>
   );
@@ -147,6 +147,61 @@ function NewInvoicePanel({ onSaved }) {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(null);
   const [resetKey, setResetKey] = useState(0);
+
+  const [pendingCharges, setPendingCharges] = useState([]);
+  const [loadingCharges, setLoadingCharges] = useState(false);
+  const [chargesUnavailable, setChargesUnavailable] = useState(false);
+
+  function loadPendingCharges(patientId) {
+    setPendingCharges([]);
+    setChargesUnavailable(false);
+    if (!patientId) return;
+
+    setLoadingCharges(true);
+    api
+      .get(`/billing/patients/${patientId}/pending-charges`)
+      .then((res) => setPendingCharges(res.data.charges || []))
+      .catch(() => {
+        // Endpoint down, not migrated yet, etc. — don't block manual
+        // entry, just fall back to it silently for the officer.
+        setPendingCharges([]);
+        setChargesUnavailable(true);
+      })
+      .finally(() => setLoadingCharges(false));
+  }
+
+  function addChargeAsLineItem(charge) {
+    setItems((list) => {
+      const blank =
+        list.length === 1 &&
+        !list[0].description &&
+        !list[0].amount;
+
+      const newItem = {
+        service_category: charge.service_category,
+        description: charge.description,
+        amount: String(charge.amount),
+        chargeable_type: charge.chargeable_type,
+        chargeable_id: charge.chargeable_id,
+      };
+
+      return blank ? [newItem] : [...list, newItem];
+    });
+
+    setPendingCharges((list) =>
+      list.filter(
+        (c) =>
+          !(
+            c.chargeable_type === charge.chargeable_type &&
+            c.chargeable_id === charge.chargeable_id
+          )
+      )
+    );
+  }
+
+  function addAllPendingCharges() {
+    pendingCharges.forEach((c) => addChargeAsLineItem(c));
+  }
 
   function updateItem(i, field, value) {
     setItems((list) =>
@@ -218,8 +273,11 @@ function NewInvoicePanel({ onSaved }) {
           payer_type: payerType,
           line_items: validItems.map(
             (i) => ({
-              ...i,
+              service_category: i.service_category,
+              description: i.description,
               amount: Number(i.amount),
+              chargeable_type: i.chargeable_type || null,
+              chargeable_id: i.chargeable_id || null,
             })
           ),
         }
@@ -240,6 +298,8 @@ function NewInvoicePanel({ onSaved }) {
         },
       ]);
 
+      setPendingCharges([]);
+      setChargesUnavailable(false);
       setResetKey((k) => k + 1);
 
       onSaved();
@@ -268,11 +328,10 @@ function NewInvoicePanel({ onSaved }) {
             key={resetKey}
             requireEncounter
             label="Patient"
-            onSelect={({ encounterId }) =>
-              setEncounterId(
-                encounterId
-              )
-            }
+            onSelect={({ patientId, encounterId }) => {
+              setEncounterId(encounterId);
+              loadPendingCharges(patientId);
+            }}
           />
 
           <Field label="Payer type">
@@ -303,10 +362,70 @@ function NewInvoicePanel({ onSaved }) {
           </Field>
         </div>
 
+        {loadingCharges && (
+          <p className="text-xs text-ink/50">
+            Checking for unbilled charges…
+          </p>
+        )}
+
+        {!loadingCharges && pendingCharges.length > 0 && (
+          <div className="rounded-lg border border-teal-500/20 bg-teal-500/5 p-3 space-y-2">
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-semibold">
+                {pendingCharges.length} unbilled charge
+                {pendingCharges.length === 1 ? "" : "s"} found for this patient
+              </p>
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                onClick={addAllPendingCharges}
+              >
+                Add all
+              </Button>
+            </div>
+
+            <div className="space-y-1">
+              {pendingCharges.map((c) => (
+                <div
+                  key={`${c.chargeable_type}-${c.chargeable_id}`}
+                  className="flex items-center justify-between text-sm bg-surface rounded-md px-2 py-1.5"
+                >
+                  <span>
+                    {c.description}{" "}
+                    <span className="text-ink/40 text-xs">
+                      ({c.service_category})
+                    </span>
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <span className="mrn-mono text-ink/70">
+                      MWK {Number(c.amount).toLocaleString()}
+                    </span>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => addChargeAsLineItem(c)}
+                    >
+                      + Add
+                    </Button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {!loadingCharges && chargesUnavailable && (
+          <p className="text-xs text-ink/50">
+            Couldn't check for unbilled charges automatically — add line items manually below.
+          </p>
+        )}
+
         {items.map((item, i) => (
           <div
             key={i}
-            className="grid grid-cols-[1fr_1fr_1fr_auto] gap-2 items-center"
+            className="grid grid-cols-1 sm:grid-cols-[150px_1fr_150px_auto] gap-2 items-center"
           >
             <Select
               value={

@@ -88,15 +88,14 @@ class PharmacyController extends Controller
     /**
      * POST /api/pharmacy/prescriptions/{prescription}/dispense
      * Roles: pharmacist, admin
-     * Deducts one unit from matching drug stock (if tracked) and warns —
-     * rather than blocks — when stock is already at zero, since refusing
-     * to record a real-world dispense that already happened would just
-     * make the data wrong, not prevent the dispense.
-     */
-    /**
-     * POST /api/pharmacy/prescriptions/{prescription}/dispense
-     * Roles: pharmacist, admin
-     * Body (optional): { confirm_unlisted_drug: bool }
+     * Body (optional): { confirm_unlisted_drug: bool, confirm_allergy_override: bool }
+     *
+     * Allergy check comes first and is a hard block, not advisory. The
+     * alert is already computed and stored on the prescription at
+     * prescribing time (cds_alerts); we don't re-run CDS here, we just
+     * refuse to proceed past it without an explicit, individually-recorded
+     * override. Stock/catalog checks are a data-quality concern — this is
+     * a patient-safety one, so it's checked before them.
      *
      * If the prescribed drug isn't in the DrugStock catalog at all, we
      * can't verify it's a real, tracked item — dispensing it silently
@@ -108,6 +107,24 @@ class PharmacyController extends Controller
      */
     public function dispense(Request $request, Prescription $prescription)
     {
+        $alerts = json_decode($prescription->cds_alerts ?? '[]', true) ?: [];
+        $allergyAlerts = array_values(array_filter($alerts, fn ($a) => str_starts_with($a, 'ALLERGY ALERT')));
+
+        $allergyOverride = null;
+
+        if ($allergyAlerts) {
+            if (! $request->boolean('confirm_allergy_override')) {
+                return response()->json([
+                    'error' => 'allergy_alert',
+                    'message' => implode(' ', $allergyAlerts).' Confirm to dispense anyway.',
+                    'requires_confirmation' => true,
+                    'requires_allergy_override' => true,
+                ], 422);
+            }
+
+            $allergyOverride = implode(' ', $allergyAlerts);
+        }
+
         // Case/whitespace-insensitive match — a doctor typing "Amoxicillin "
         // or "AMOXICILLIN" for a stock item filed as "amoxicillin" should
         // still resolve to the same catalog entry, not fall through to the
@@ -136,13 +153,19 @@ class PharmacyController extends Controller
             'status' => 'dispensed',
             'dispensed_by' => $request->user()->id,
             'dispensed_at' => now(),
+            'allergy_override_by' => $allergyOverride ? $request->user()->id : null,
+            'allergy_override_at' => $allergyOverride ? now() : null,
         ]);
 
+        if ($allergyOverride) {
+            AuditLogger::log($request->user(), 'dispense_allergy_override', 'prescription', $prescription->id, $allergyOverride);
+        }
         AuditLogger::log($request->user(), 'dispense_medication', 'prescription', $prescription->id, $stockWarning);
 
         $result = $prescription->toArray();
         $result['patient_name'] = $prescription->patient?->full_name;
         $result['stock_warning'] = $stockWarning;
+        $result['allergy_override_warning'] = $allergyOverride;
 
         return response()->json($result);
     }

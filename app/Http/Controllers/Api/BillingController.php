@@ -3,16 +3,107 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\DialysisSession;
 use App\Models\Encounter;
+use App\Models\ImagingOrder;
 use App\Models\Invoice;
 use App\Models\InvoiceLineItem;
+use App\Models\LabOrder;
+use App\Models\Patient;
+use App\Models\Prescription;
 use App\Services\AuditLogger;
+use App\Services\ChargeCatalog;
 use App\Services\IdGenerator;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 
 class BillingController extends Controller
 {
+    /**
+     * GET /api/billing/patients/{patient}/pending-charges
+     * Roles: billing, admin
+     *
+     * Pulls every unbilled, charge-worthy clinical event for this patient —
+     * completed lab tests, completed imaging studies, dispensed medications,
+     * and completed dialysis sessions — so reception doesn't have to
+     * reconstruct the bill by hand from paper notes. An item only shows up
+     * here once (it disappears the moment it's added to an invoice, via the
+     * chargeable_type/chargeable_id link on invoice_line_items).
+     */
+    public function pendingCharges(Patient $patient)
+    {
+        $alreadyBilled = function (string $type) {
+            return InvoiceLineItem::where('chargeable_type', $type)->pluck('chargeable_id');
+        };
+
+        $labCharges = LabOrder::where('patient_id', $patient->id)
+            ->whereIn('status', ['resulted', 'verified'])
+            ->whereNotIn('id', $alreadyBilled(LabOrder::class))
+            ->get()
+            ->map(fn (LabOrder $o) => [
+                'chargeable_type' => LabOrder::class,
+                'chargeable_id' => $o->id,
+                'encounter_id' => $o->encounter_id,
+                'service_category' => 'laboratory',
+                'description' => 'Lab: '.($o->loinc_display ?: $o->test_code ?: 'Test'),
+                'amount' => ChargeCatalog::labOrderPrice($o->test_code),
+                'occurred_at' => ($o->received_at ?? $o->created_at)?->toIso8601String(),
+            ]);
+
+        $imagingCharges = ImagingOrder::where('patient_id', $patient->id)
+            ->where('status', 'reported')
+            ->whereNotIn('id', $alreadyBilled(ImagingOrder::class))
+            ->get()
+            ->map(fn (ImagingOrder $o) => [
+                'chargeable_type' => ImagingOrder::class,
+                'chargeable_id' => $o->id,
+                'encounter_id' => $o->encounter_id,
+                'service_category' => 'imaging',
+                'description' => 'Imaging: '.($o->study_description ?: $o->modality ?: 'Study'),
+                'amount' => ChargeCatalog::imagingOrderPrice($o->modality),
+                'occurred_at' => $o->created_at?->toIso8601String(),
+            ]);
+
+        $prescriptionCharges = Prescription::where('patient_id', $patient->id)
+            ->where('status', 'dispensed')
+            ->whereNotIn('id', $alreadyBilled(Prescription::class))
+            ->get()
+            ->map(fn (Prescription $rx) => [
+                'chargeable_type' => Prescription::class,
+                'chargeable_id' => $rx->id,
+                'encounter_id' => $rx->encounter_id,
+                'service_category' => 'pharmacy',
+                'description' => 'Medication: '.$rx->drug_name.($rx->formulation ? " ({$rx->formulation})" : ''),
+                'amount' => ChargeCatalog::prescriptionPrice(),
+                'occurred_at' => $rx->dispensed_at?->toIso8601String(),
+            ]);
+
+        $dialysisCharges = DialysisSession::where('patient_id', $patient->id)
+            ->where('status', 'completed')
+            ->whereNotIn('id', $alreadyBilled(DialysisSession::class))
+            ->get()
+            ->map(fn (DialysisSession $s) => [
+                'chargeable_type' => DialysisSession::class,
+                'chargeable_id' => $s->id,
+                'encounter_id' => $s->encounter_id,
+                'service_category' => 'procedure',
+                'description' => 'Dialysis session'.($s->session_date ? ' — '.$s->session_date->format('d M Y') : ''),
+                'amount' => ChargeCatalog::dialysisSessionPrice(),
+                'occurred_at' => $s->session_date?->toIso8601String(),
+            ]);
+
+        $charges = $labCharges->concat($imagingCharges)->concat($prescriptionCharges)->concat($dialysisCharges)
+            ->sortByDesc('occurred_at')
+            ->values();
+
+        return response()->json([
+            'patient_id' => $patient->id,
+            'count' => $charges->count(),
+            'total' => $charges->sum('amount'),
+            'charges' => $charges,
+        ]);
+    }
+
     /**
      * GET /api/billing/invoices?status=&encounter_id=
      */
@@ -69,6 +160,8 @@ class BillingController extends Controller
                 'service_category' => $item['service_category'] ?? null,
                 'description' => $item['description'] ?? null,
                 'amount' => (float) $item['amount'],
+                'chargeable_type' => $item['chargeable_type'] ?? null,
+                'chargeable_id' => $item['chargeable_id'] ?? null,
             ];
         }
 
@@ -98,6 +191,8 @@ class BillingController extends Controller
                     'service_category' => $item['service_category'],
                     'description' => $item['description'],
                     'amount' => $item['amount'],
+                    'chargeable_type' => $item['chargeable_type'],
+                    'chargeable_id' => $item['chargeable_id'],
                 ]);
             }
 

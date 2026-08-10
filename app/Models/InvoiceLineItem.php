@@ -8,7 +8,7 @@ class InvoiceLineItem extends Model
 {
     const UPDATED_AT = null;
 
-    protected $fillable = ['client_uuid', 'invoice_id', 'service_category', 'description', 'amount', 'synced'];
+    protected $fillable = ['client_uuid', 'invoice_id', 'chargeable_type', 'chargeable_id', 'service_category', 'description', 'amount', 'synced'];
 
     protected function casts(): array
     {

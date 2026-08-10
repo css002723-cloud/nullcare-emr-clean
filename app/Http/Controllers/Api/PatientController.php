@@ -7,7 +7,6 @@ use App\Http\Resources\AllergyResource;
 use App\Http\Resources\EncounterResource;
 use App\Http\Resources\PatientResource;
 use App\Models\Encounter;
-use App\Models\LabResult;
 use App\Models\Patient;
 use App\Services\AuditLogger;
 use App\Services\IdGenerator;
@@ -28,46 +27,76 @@ class PatientController extends Controller
         $q = trim((string) $request->query('q', ''));
         $status = $request->query('status', 'active');
 
-        $query = Patient::whereNull('merged_into_patient_id');
-
-        if ($q) {
-            $like = "%{$q}%";
-            $query->where(function ($sub) use ($like) {
-                $sub->where('given_name', 'like', $like)
-                    ->orWhere('family_name', 'like', $like)
-                    ->orWhere('patient_uid', 'like', $like)
-                    ->orWhere('national_id', 'like', $like)
-                    ->orWhere('phone', 'like', $like);
-            });
-        }
-
+        $baseQuery = Patient::whereNull('merged_into_patient_id');
         if (in_array($status, ['active', 'completed'], true)) {
             $activeIds = Encounter::whereNotIn('stage', Encounter::CLOSED_STAGES)->distinct()->pluck('patient_id');
             $anyEncounterIds = Encounter::distinct()->pluck('patient_id');
 
             if ($status === 'active') {
-                $query->where(function ($sub) use ($activeIds, $anyEncounterIds) {
+                $baseQuery->where(function ($sub) use ($activeIds, $anyEncounterIds) {
                     $sub->whereIn('id', $activeIds)->orWhereNotIn('id', $anyEncounterIds);
                 });
             } else {
-                $query->whereIn('id', $anyEncounterIds)->whereNotIn('id', $activeIds);
+                $baseQuery->whereIn('id', $anyEncounterIds)->whereNotIn('id', $activeIds);
             }
         }
 
-        $patients = $query->orderByDesc('created_at')->limit(100)->get();
+        if (! $q) {
+            $patients = (clone $baseQuery)->orderByDesc('created_at')->limit(100)->get();
+        } else {
+            $like = "%{$q}%";
 
-        $patientIds = $patients->pluck('id');
-        $criticalPatientIds = LabResult::where('is_critical', true)
-            ->where('critical_alert_acknowledged', false)
-            ->whereHas('labOrder', fn ($q) => $q->whereIn('patient_id', $patientIds))
-            ->get()
-            ->map(fn ($result) => $result->labOrder?->patient_id)
-            ->filter()
-            ->unique()
-            ->values()
-            ->all();
+            // Fast path: exact/substring matches, ranked first.
+            $exactMatches = (clone $baseQuery)->where(function ($sub) use ($like) {
+                $sub->where('given_name', 'like', $like)
+                    ->orWhere('family_name', 'like', $like)
+                    ->orWhere('patient_uid', 'like', $like)
+                    ->orWhere('national_id', 'like', $like)
+                    ->orWhere('phone', 'like', $like);
+            })->orderByDesc('created_at')->limit(100)->get();
 
-        $result = $patients->map(function (Patient $p) use ($criticalPatientIds) {
+            $patients = $exactMatches;
+
+            // Typo-tolerant path: catches transposed/missing/extra letters
+            // ("Chiumia" vs "Chiuma", "Bandah" vs "Banda") that LIKE misses.
+            // Reception staff frequently mistype names under pressure, and a
+            // failed lookup here risks a duplicate patient record being
+            // created instead of the existing one being found.
+            if (mb_strlen($q) >= 3 && $exactMatches->count() < 25) {
+                $excludeIds = $exactMatches->pluck('id')->all();
+
+                $candidates = (clone $baseQuery)
+                    ->when($excludeIds, fn ($sub) => $sub->whereNotIn('id', $excludeIds))
+                    ->orderByDesc('created_at')
+                    ->limit(500) // prototype-scale app-level fuzzy match; move to a
+                    ->get();     // trigram/fulltext index if the patient table grows large.
+
+                $qNorm = mb_strtolower($q);
+                $threshold = max(1, (int) floor(mb_strlen($q) / 3));
+
+                $fuzzy = $candidates
+                    ->map(function (Patient $p) use ($qNorm, $threshold) {
+                        $given = mb_strtolower((string) $p->given_name);
+                        $family = mb_strtolower((string) $p->family_name);
+                        $full = trim($given.' '.$family);
+
+                        $distance = min(
+                            levenshtein($qNorm, $given),
+                            levenshtein($qNorm, $family),
+                            levenshtein($qNorm, $full)
+                        );
+
+                        return ['patient' => $p, 'distance' => $distance];
+                    })
+                    ->filter(fn ($row) => $row['distance'] <= $threshold)
+                    ->sortBy('distance')
+                    ->pluck('patient');
+
+                $patients = $exactMatches->concat($fuzzy)->take(100);
+            }
+        }
+
+        $result = $patients->map(function (Patient $p) {
             $latest = Encounter::where('patient_id', $p->id)->latest()->first();
             $d = (new PatientResource($p))->toArray(request());
             $d['latest_encounter_at'] = $latest?->created_at?->toIso8601String();
@@ -75,7 +104,6 @@ class PatientController extends Controller
             $d['latest_mrn'] = $latest?->mrn;
             $d['latest_encounter_stage'] = $latest?->stage;
             $d['has_active_encounter'] = $latest && ! in_array($latest->stage, Encounter::CLOSED_STAGES, true);
-            $d['has_critical_lab_alert'] = in_array($p->id, $criticalPatientIds, true);
 
             return $d;
         });

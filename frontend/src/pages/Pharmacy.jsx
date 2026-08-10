@@ -27,24 +27,36 @@ export default function Pharmacy() {
 
   const [warning, setWarning] = useState(null);
 
-  async function dispense(id, confirmUnlisted = false) {
+  async function dispense(id, confirmUnlisted = false, confirmAllergy = false) {
     try {
       const res = await api.post(`/pharmacy/prescriptions/${id}/dispense`, {
         confirm_unlisted_drug: confirmUnlisted,
+        confirm_allergy_override: confirmAllergy,
       });
       if (res.data.stock_warning) setWarning({ id, message: res.data.stock_warning });
       else setWarning(null);
       load();
     } catch (err) {
-      if (err.response?.status === 422 && err.response.data?.requires_confirmation) {
-        const proceed = window.confirm(err.response.data.message + "\n\nDispense anyway?");
+      const data = err.response?.data;
+      if (err.response?.status === 422 && data?.requires_allergy_override) {
+        // Deliberately not window.confirm() — this is a "type to proceed"
+        // style gate so a pharmacist can't reflexively click past a
+        // documented allergy the way a generic OK/Cancel dialog invites.
+        const typed = window.prompt(data.message + '\n\nType "override" to dispense despite this allergy, or leave blank to cancel.');
+        if (typed && typed.trim().toLowerCase() === "override") {
+          dispense(id, confirmUnlisted, true);
+        } else {
+          setWarning({ id, message: "Not dispensed — documented allergy alert was not overridden." });
+        }
+      } else if (err.response?.status === 422 && data?.requires_confirmation) {
+        const proceed = window.confirm(data.message + "\n\nDispense anyway?");
         if (proceed) {
-          dispense(id, true);
+          dispense(id, true, confirmAllergy);
         } else {
           setWarning({ id, message: "Not dispensed — drug isn't in the stock catalog. Add it under Stock levels below, or confirm to dispense without stock tracking." });
         }
       } else {
-        setWarning({ id, message: err.response?.data?.message || "Couldn't dispense — please try again." });
+        setWarning({ id, message: data?.message || "Couldn't dispense — please try again." });
       }
     }
   }
@@ -93,6 +105,9 @@ export default function Pharmacy() {
                   <Button size="sm" onClick={() => dispense(rx.id)}>Dispense</Button>
                 )}
                 {rx.status === "dispensed" && <Badge tone="success">Dispensed</Badge>}
+                {rx.status === "dispensed" && rx.allergy_override_by && (
+                  <Badge tone="warning">Dispensed despite allergy alert</Badge>
+                )}
               </div>
               {warning?.id === rx.id && (
                 <p className="mt-2 text-xs text-alert bg-alert/5 border border-alert/20 rounded px-2 py-1">

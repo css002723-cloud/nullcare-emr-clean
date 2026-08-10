@@ -74,6 +74,29 @@ class AppointmentController extends Controller
             'contact_phone' => 'nullable|string|max:30',
         ]);
 
+        // A doctor can only be in one place at a time. Block a second active
+        // booking for the same doctor at the same date+time; cancelled/missed
+        // slots don't count as "occupied", so they don't block a re-book.
+        if (! empty($validated['doctor_id'])) {
+            $conflict = Appointment::where('doctor_id', $validated['doctor_id'])
+                ->whereDate('appointment_date', $validated['appointment_date'])
+                ->where('appointment_time', $validated['appointment_time'])
+                ->whereNotIn('status', ['cancelled', 'missed'])
+                ->with('doctor:id,first_name,last_name')
+                ->first();
+
+            if ($conflict) {
+                $doctorName = trim(($conflict->doctor->first_name ?? '').' '.($conflict->doctor->last_name ?? ''));
+
+                return response()->json([
+                    'error' => 'slot_conflict',
+                    'message' => trim($doctorName)
+                        ? "Dr. {$doctorName} already has an appointment booked at this date and time."
+                        : 'This doctor already has an appointment booked at this date and time.',
+                ], 409);
+            }
+        }
+
         do {
             $number = 'APT-'.now()->format('ymdHis').'-'.random_int(10, 99);
         } while (Appointment::where('appointment_number', $number)->exists());
