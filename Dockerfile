@@ -44,9 +44,14 @@ COPY . .
 # Copy compiled React build assets to a dedicated static directory
 COPY --from=frontend-builder /app/dist ./frontend-dist
 
-# Install Composer dependencies
-RUN curl -sS https://getcomposer.org | php -- --install-dir=/usr/local/bin --filename=composer
-RUN composer install --no-dev --optimize-autoloader
+# Install Composer dependencies (use official installer)
+# Increase memory limit for composer in case of large installs
+ENV COMPOSER_MEMORY_LIMIT=-1
+RUN php -r "copy('https://getcomposer.org/installer', 'composer-setup.php');" \
+ && php composer-setup.php --install-dir=/usr/local/bin --filename=composer \
+ && rm composer-setup.php
+
+RUN composer install --no-dev --no-interaction --optimize-autoloader
 RUN chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache
 
 # Expose port 80 and start both servers side-by-side
