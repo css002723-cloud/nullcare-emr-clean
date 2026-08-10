@@ -97,8 +97,16 @@ export default function Pharmacy() {
               <div className="flex items-center justify-between flex-wrap gap-2">
                 <div>
                   <p className="text-sm font-semibold text-teal-700">{rx.patient_name || "Patient name unavailable"}</p>
+                  <p className="text-xs text-ink/50 mrn-mono">{rx.patient_uid || "Patient ID unavailable"}</p>
                   <p className="font-semibold">{rx.drug_name} {rx.formulation}</p>
                   <p className="text-xs text-ink/50">{rx.dose} · {rx.route} · {rx.frequency} · {rx.duration}</p>
+                  {rx.patient_allergies?.length > 0 ? (
+                    <p className="text-xs text-ink/50 mt-1">
+                      Allergies: {rx.patient_allergies.map((a) => `${a.substance}${a.severity ? ` (${a.severity})` : ""}${a.reaction ? ` — ${a.reaction}` : ""}`).join("; ")}
+                    </p>
+                  ) : (
+                    <p className="text-xs text-ink/50 mt-1">No known allergies recorded.</p>
+                  )}
                   {rx.is_pediatric_dose && <Badge tone="warning" className="mt-1">Pediatric dose — verify weight-based calculation</Badge>}
                 </div>
                 {hasRole("pharmacist") && rx.status === "pending" && (

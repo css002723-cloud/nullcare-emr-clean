@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\PharmacyController;
+use App\Models\Allergy;
 use App\Models\Encounter;
 use App\Models\Patient;
 use App\Models\Prescription;
@@ -36,6 +37,47 @@ it('includes the patient name on pharmacy prescriptions', function () {
     $payload = json_decode($response->getContent(), true);
 
     expect($payload[0]['patient_name'])->toBe('Amina Khan');
+    expect($payload[0]['patient_uid'])->toBe('P12345678');
+    expect($payload[0]['patient_allergies'])->toBe([]);
+});
+
+it('includes patient UID and allergy data on pharmacy prescriptions', function () {
+    $patient = Patient::create([
+        'patient_uid' => 'P12399999',
+        'given_name' => 'Moses',
+        'family_name' => 'Chirwa',
+        'sex' => 'male',
+    ]);
+
+    Allergy::create([
+        'patient_id' => $patient->id,
+        'substance' => 'Penicillin',
+        'reaction' => 'rash',
+        'severity' => 'moderate',
+    ]);
+
+    Prescription::create([
+        'encounter_id' => 1,
+        'patient_id' => $patient->id,
+        'drug_name' => 'Amoxicillin',
+        'formulation' => 'tablet',
+        'dose' => '500mg',
+        'route' => 'oral',
+        'frequency' => 'bd',
+        'duration' => '5 days',
+        'status' => 'pending',
+    ]);
+
+    $controller = app(PharmacyController::class);
+    $response = $controller->indexPrescriptions(new Request(['status' => 'pending']));
+    $payload = json_decode($response->getContent(), true);
+
+    expect($payload[0]['patient_uid'])->toBe('P12399999');
+    expect($payload[0]['patient_allergies'][0])->toBe([ 
+        'substance' => 'Penicillin',
+        'reaction' => 'rash',
+        'severity' => 'moderate',
+    ]);
 });
 
 function makePendingPrescriptionWithAllergyAlert(): Prescription

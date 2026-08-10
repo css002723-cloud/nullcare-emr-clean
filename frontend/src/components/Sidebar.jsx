@@ -153,6 +153,11 @@ const NAV_BY_ROLE = {
       icon: Stethoscope,
     },
     {
+      to: "/imaging",
+      label: "Imaging",
+      icon: ScanLine,
+    },
+    {
       to: "/wards",
       label: "Wards",
       icon: BedDouble,

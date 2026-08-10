@@ -36,17 +36,42 @@ export default function PatientLookup({ requireEncounter = false, onSelect, onCl
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  async function loadPatients(query = "") {
+    setSearching(true);
+    try {
+      const params = { status: "all" };
+      if (query.trim()) {
+        params.q = query.trim();
+      }
+      const res = await api.get("/patients", { params });
+      setResults(res.data || []);
+      setShowResults(true);
+    } catch {
+      setResults([]);
+      setShowResults(true);
+    } finally {
+      setSearching(false);
+    }
+  }
+
+  useEffect(() => {
+    if (!selectedPatient) {
+      loadPatients();
+    }
+  }, []);
+
   function handleQueryChange(value) {
     setQuery(value);
     if (debounceRef.current) clearTimeout(debounceRef.current);
     if (!value.trim()) {
-      setResults([]);
+      loadPatients();
+      setShowResults(true);
       return;
     }
     setSearching(true);
     debounceRef.current = setTimeout(async () => {
       try {
-        const res = await api.get("/patients", { params: { q: value, status: "all" } });
+        const res = await api.get("/patients", { params: { q: value.trim(), status: "all" } });
         if (res.data && res.data.length > 0) {
           setResults(res.data);
           setShowResults(true);
@@ -197,7 +222,12 @@ export default function PatientLookup({ requireEncounter = false, onSelect, onCl
         <Input
           value={query}
           onChange={(e) => handleQueryChange(e.target.value)}
-          onFocus={() => query && setShowResults(true)}
+          onFocus={() => {
+            if (!query.trim()) {
+              loadPatients();
+            }
+            setShowResults(true);
+          }}
           placeholder="Search patient by name or ID…"
           className="pl-9"
         />
@@ -208,7 +238,18 @@ export default function PatientLookup({ requireEncounter = false, onSelect, onCl
           {searching ? (
             <p className="text-xs text-ink/40 px-3 py-3">Searching…</p>
           ) : results.length === 0 ? (
-            <p className="text-xs text-ink/40 px-3 py-3">No matching patients.</p>
+            <div className="px-3 py-3 space-y-2">
+              <p className="text-xs text-ink/40">No matching patients.</p>
+              {!query.trim() && (
+                <button
+                  type="button"
+                  onClick={() => loadPatients()}
+                  className="text-sm text-teal-700 font-medium"
+                >
+                  Refresh patient list
+                </button>
+              )}
+            </div>
           ) : (
             results.map((p) => (
               <button

@@ -22,7 +22,7 @@ class PharmacyController extends Controller
      */
     public function indexPrescriptions(Request $request)
     {
-        $query = Prescription::query();
+        $query = Prescription::with('patient.allergies');
 
         if ($request->filled('status')) {
             $query->where('status', $request->query('status'));
@@ -31,9 +31,15 @@ class PharmacyController extends Controller
             $query->where('encounter_id', $request->query('encounter_id'));
         }
 
-        $prescriptions = $query->latest()->with('patient')->get()->map(function (Prescription $prescription) {
+        $prescriptions = $query->latest()->get()->map(function (Prescription $prescription) {
             $payload = $prescription->toArray();
             $payload['patient_name'] = $prescription->patient?->full_name;
+            $payload['patient_uid'] = $prescription->patient?->patient_uid;
+            $payload['patient_allergies'] = $prescription->patient?->allergies?->map(fn (Allergy $allergy) => [
+                'substance' => $allergy->substance,
+                'reaction' => $allergy->reaction,
+                'severity' => $allergy->severity,
+            ])?->toArray() ?? [];
 
             return $payload;
         });
@@ -80,6 +86,12 @@ class PharmacyController extends Controller
 
         $result = $prescription->toArray();
         $result['patient_name'] = $patient->full_name;
+        $result['patient_uid'] = $patient->patient_uid;
+        $result['patient_allergies'] = $patient->allergies->map(fn (Allergy $allergy) => [
+            'substance' => $allergy->substance,
+            'reaction' => $allergy->reaction,
+            'severity' => $allergy->severity,
+        ])->toArray();
         $result['cds_alerts_list'] = $alerts;
 
         return response()->json($result, 201);
@@ -164,6 +176,12 @@ class PharmacyController extends Controller
 
         $result = $prescription->toArray();
         $result['patient_name'] = $prescription->patient?->full_name;
+        $result['patient_uid'] = $prescription->patient?->patient_uid;
+        $result['patient_allergies'] = $prescription->patient?->allergies->map(fn (Allergy $allergy) => [
+            'substance' => $allergy->substance,
+            'reaction' => $allergy->reaction,
+            'severity' => $allergy->severity,
+        ])->toArray() ?? [];
         $result['stock_warning'] = $stockWarning;
         $result['allergy_override_warning'] = $allergyOverride;
 

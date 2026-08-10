@@ -582,6 +582,12 @@ function InvoiceRow({
             {invoice.invoice_number}
           </p>
 
+          {invoice.patient_name && (
+            <p className="text-sm text-ink/70">
+              {invoice.patient_name} — <span className="mrn-mono">{invoice.patient_uid}</span>
+            </p>
+          )}
+
           <p className="text-xs text-ink/50">
             {invoice.payer_type}
 

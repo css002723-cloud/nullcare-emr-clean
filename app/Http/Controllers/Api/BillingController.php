@@ -118,10 +118,12 @@ class BillingController extends Controller
             $query->where('encounter_id', $request->query('encounter_id'));
         }
 
-        $invoices = $query->latest()->get();
+        $invoices = $query->with('patient')->latest()->get();
 
         $result = $invoices->map(function (Invoice $inv) {
             $d = $inv->toArray();
+            $d['patient_name'] = $inv->patient?->full_name;
+            $d['patient_uid'] = $inv->patient?->patient_uid;
             $d['line_items'] = InvoiceLineItem::where('invoice_id', $inv->id)->get();
 
             return $d;
