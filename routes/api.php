@@ -253,5 +253,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::middleware('role:records_officer,admin')->group(function () {
         Route::get('/research/export', [ResearchController::class, 'export']);
         Route::get('/research/consent-summary', [ResearchController::class, 'consentSummary']);
+        Route::get('/research/report-summary', [ResearchController::class, 'reportSummary']);
+        Route::get('/research/report-export', [ResearchController::class, 'reportExport']);
     });
 });
