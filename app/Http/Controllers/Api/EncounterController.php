@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Resources\AllergyResource;
 use App\Http\Resources\EncounterResource;
 use App\Http\Resources\PatientResource;
 use App\Models\ClinicalNote;
@@ -66,8 +67,15 @@ class EncounterController extends Controller
     public function show(Encounter $encounter)
     {
         $d = (new EncounterResource($encounter))->toArray(request());
-        $patient = Patient::find($encounter->patient_id);
-        $d['patient'] = $patient ? (new PatientResource($patient))->toArray(request()) : null;
+        $patient = Patient::with('allergies')->find($encounter->patient_id);
+
+        if ($patient) {
+            $d['patient'] = (new PatientResource($patient))->toArray(request());
+            $d['patient']['allergies'] = AllergyResource::collection($patient->allergies)->toArray(request());
+        } else {
+            $d['patient'] = null;
+        }
+
         $d['referral'] = in_array($encounter->stage, Encounter::CLOSED_STAGES, true) ? null : $encounter->activeReferralSummary();
 
         return response()->json($d);
