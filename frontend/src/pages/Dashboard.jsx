@@ -114,7 +114,7 @@ export default function Dashboard() {
 
         <div className="flex items-center gap-3">
 
-          <div className="hidden md:flex items-center gap-2 text-xs font-medium text-ink/60 bg-line/30 px-3 py-1.5 rounded-full">
+          <div className="hidden md:flex items-center gap-2 text-xs font-medium text-ink/60 px-3 py-1.5 rounded-full">
             <Calendar size={13} className="text-teal-500" />
 
             <span>
@@ -144,30 +144,11 @@ export default function Dashboard() {
       {/* =====================================================
           HERO WELCOME BANNER
           ===================================================== */}
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-r from-teal-900 via-teal-800 to-emerald-900 p-6 text-white shadow-xl shadow-teal-950/5">
-
-        <div className="absolute -right-10 -bottom-10 opacity-10 pointer-events-none">
-          <Sparkles size={240} />
-        </div>
-
-        <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-
-          <div>
-
-            <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-white/10 backdrop-blur-md text-teal-200 text-xs font-medium mb-2 border border-white/10">
-              <Sparkles size={13} />
-              Real-time System Overview
-            </div>
-
-            <h1 className="font-display text-2xl sm:text-3xl font-semibold tracking-tight">
-              Good day, {user?.full_name?.split(" ")[0]}
-            </h1>
-
-            <p className="text-teal-100/70 text-sm mt-1">
-              Here is what is happening across the facility today.
-            </p>
-
-          </div>
+      <div className="relative p-0">
+        <div className="relative z-10">
+          <h1 className="font-display text-3xl sm:text-4xl font-semibold tracking-tight text-ink">
+            Greetings, {user?.full_name?.split(" ")[0]}
+          </h1>
         </div>
       </div>
 
