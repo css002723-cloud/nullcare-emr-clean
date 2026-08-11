@@ -19,7 +19,7 @@ import {
   Moon,
   Sun,
   X,
-  MessageSquareText,
+  Bell,
   Siren,
   Package,
   Settings as SettingsIcon,
@@ -296,8 +296,8 @@ export default function Sidebar({ open, onClose }) {
 
     {
       to: "/messages",
-      label: "Messages",
-      icon: MessageSquareText,
+      label: "Notifications",
+      icon: Bell,
       badge: unreadCount,
     },
 
