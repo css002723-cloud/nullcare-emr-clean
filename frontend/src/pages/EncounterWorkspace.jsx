@@ -3,6 +3,7 @@ import { useParams, useNavigate, Link } from "react-router-dom";
 import api from "../services/api";
 import { Card, Badge, Button, Field, Input, Select, Textarea, LoadingRow, priorityTone } from "../components/ui";
 import PatientRibbon from "../components/PatientRibbon";
+import BillingPanel from "../components/BillingPanel";
 import ClinicalNoteForm from "../components/ClinicalNoteForm";
 import { useAuth } from "../context/AuthContext";
 import { createWithOfflineFallback } from "../offline/offlineResource";
@@ -68,6 +69,10 @@ export default function EncounterWorkspace() {
 
       {hasRole("nurse", "doctor") && (
         <VitalsPanel encounterId={id} vitals={vitals} onSaved={() => { load(); flash("Vitals recorded"); }} />
+      )}
+
+      {hasRole("billing", "admin") && (
+        <BillingPanel encounterId={id} patientId={patient?.id} onSaved={() => { load(); flash("Invoice created"); }} />
       )}
 
       <ClinicalNoteForm encounterId={id} notes={notes} canWrite={hasRole("doctor", "nurse")} onSaved={() => { load(); flash("Note saved"); }} />
@@ -177,8 +182,8 @@ function OrdersPanel({ encounterId, orders, onSaved }) {
       </div>
       <form onSubmit={submit} className="space-y-2">
         <Select value={form.order_type} onChange={(e) => setForm({ ...form, order_type: e.target.value })}>
-          <option value="lab">Laboratory (use Laboratory module for LOINC test codes)</option>
-          <option value="imaging">Imaging (use Imaging module for modality)</option>
+          <option value="lab">Laboratory (LOINC)</option>
+          <option value="imaging">Imaging</option>
           <option value="procedure">Procedure</option>
           <option value="admission">Admission</option>
         </Select>

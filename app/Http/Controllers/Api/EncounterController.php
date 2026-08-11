@@ -8,6 +8,7 @@ use App\Http\Resources\EncounterResource;
 use App\Http\Resources\PatientResource;
 use App\Models\ClinicalNote;
 use App\Models\Encounter;
+use App\Models\Invoice;
 use App\Models\LabResult;
 use App\Models\Patient;
 use App\Services\AuditLogger;
@@ -77,6 +78,14 @@ class EncounterController extends Controller
         }
 
         $d['referral'] = in_array($encounter->stage, Encounter::CLOSED_STAGES, true) ? null : $encounter->activeReferralSummary();
+
+        // Include any invoices for this encounter so billing UIs can operate
+        $invoices = Invoice::where('encounter_id', $encounter->id)->with('lineItems')->get();
+        $d['invoices'] = $invoices->map(function ($inv) {
+            $o = $inv->toArray();
+            $o['line_items'] = $inv->lineItems()->get();
+            return $o;
+        })->values();
 
         return response()->json($d);
     }
