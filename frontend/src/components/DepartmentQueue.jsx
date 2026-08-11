@@ -26,7 +26,7 @@ export default function DepartmentQueue({ title, hint, encounters, emptyHint }) 
           {encounters.map((e) => (
             <tr
               key={e.id}
-              className={`border-t border-line hover:bg-surface-alt/60 cursor-pointer ${e.is_emergency ? "bg-alert/5" : ""}`}
+              className={`border-t ${e.is_emergency ? "border-alert/30 bg-alert/10 hover:bg-alert/15" : "border-line hover:bg-surface-alt/60"} cursor-pointer`}
               onClick={() => navigate(`/encounters/${e.id}`)}
             >
               <td className="px-4 py-3 font-medium">

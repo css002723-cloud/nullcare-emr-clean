@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
-import { Stethoscope } from "lucide-react";
+import { Stethoscope, Siren } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import api from "../services/api";
 import DepartmentQueue from "../components/DepartmentQueue";
@@ -13,6 +13,9 @@ export default function Consultation() {
   const [selected, setSelected] = useState(null); // selected critical result for modal
   const [ackLoading, setAckLoading] = useState(false);
   const navigate = useNavigate();
+
+  const emergencyEncounters = encounters.filter((enc) => enc.is_emergency);
+  const regularEncounters = encounters.filter((enc) => !enc.is_emergency);
 
   const load = useCallback(() => {
     setLoading(true);
@@ -92,10 +95,45 @@ export default function Consultation() {
         </Card>
       )}
 
+      <Card className={emergencyEncounters.length > 0 ? "border-alert/30 bg-alert/5" : "border-line bg-surface-alt"}>
+        <div className="flex flex-col gap-2">
+          <p className={emergencyEncounters.length > 0 ? "font-semibold text-alert flex items-center gap-2" : "font-semibold text-ink/80 flex items-center gap-2"}>
+            <Badge tone={emergencyEncounters.length > 0 ? "critical" : "muted"}>
+              {emergencyEncounters.length > 0 ? "Emergency" : "No emergencies"}
+            </Badge>
+            {emergencyEncounters.length > 0
+              ? `There ${emergencyEncounters.length === 1 ? "is" : "are"} ${emergencyEncounters.length} emergency patient${emergencyEncounters.length === 1 ? "" : "s"} currently waiting for consultation.`
+              : "No emergency patients are currently waiting in consultation."}
+          </p>
+
+          {emergencyEncounters.length > 0 && (
+            <div className="mt-3 grid gap-2">
+              {emergencyEncounters.map((enc) => (
+                <button
+                  key={enc.id}
+                  onClick={() => openEncounter(enc.id)}
+                  className="text-left rounded-lg p-3 bg-white border border-alert/20 hover:bg-alert/10 transition"
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="font-semibold text-sm text-alert">{enc.patient?.full_name || "Unknown patient"}</p>
+                      <p className="text-xs text-ink/50 mrn-mono">{enc.mrn}</p>
+                    </div>
+                    <span className="inline-flex items-center gap-1 rounded-full bg-alert/10 text-alert border border-alert/30 px-2 py-0.5 text-[10px] uppercase font-semibold">
+                      <Siren size={12} /> Emergency
+                    </span>
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      </Card>
+
       {loading ? <LoadingRow /> : (
         <DepartmentQueue
           title="consultation"
-          encounters={encounters}
+          encounters={regularEncounters}
           emptyHint="Patients move here automatically once nursing triage and vitals are complete."
         />
       )}

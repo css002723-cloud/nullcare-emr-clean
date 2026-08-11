@@ -1,5 +1,5 @@
 import { NavLink } from "react-router-dom";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   LayoutDashboard,
   Users,
@@ -32,6 +32,7 @@ import { useAuth } from "../context/AuthContext";
 import { useTheme } from "../context/ThemeContext";
 import { useUnreadMessages } from "../hooks/useUnreadMessages";
 import { useMyAppointments } from "../hooks/useMyAppointments";
+import api from "../services/api";
 
 const NAV_BY_ROLE = {
   admin: [
@@ -285,11 +286,24 @@ export default function Sidebar({ open, onClose }) {
   const { user, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
   const [collapsed, setCollapsed] = useState(false);
+  const [consultationEmergencyCount, setConsultationEmergencyCount] = useState(0);
 
   const { unreadCount } = useUnreadMessages();
   const { scheduledCount } = useMyAppointments();
 
   const roleItems = NAV_BY_ROLE[user?.role] || [];
+
+  useEffect(() => {
+    api
+      .get("/encounters", { params: { department: "consultation", active_only: "true" } })
+      .then((res) => {
+        const data = Array.isArray(res.data) ? res.data : [];
+        setConsultationEmergencyCount(data.filter((enc) => enc.is_emergency).length);
+      })
+      .catch(() => {
+        setConsultationEmergencyCount(0);
+      });
+  }, []);
 
   const items = [
     ...roleItems.slice(0, 1),
@@ -302,14 +316,23 @@ export default function Sidebar({ open, onClose }) {
     },
 
     ...roleItems.slice(1),
-  ].map((item) =>
-    item.to === "/appointments"
-      ? {
-          ...item,
-          badge: scheduledCount,
-        }
-      : item
-  );
+  ]
+    .map((item) =>
+      item.to === "/appointments"
+        ? {
+            ...item,
+            badge: scheduledCount,
+          }
+        : item
+    )
+    .map((item) =>
+      item.to === "/consultation"
+        ? {
+            ...item,
+            emergency: consultationEmergencyCount,
+          }
+        : item
+    );
 
   const isDark = theme === "dark";
 
@@ -630,19 +653,24 @@ export default function Sidebar({ open, onClose }) {
                         duration-150
 
                         ${
-                          isDark
-                            ? isActive
-                              ? "text-white"
-                              : "text-teal-200 group-hover:text-white"
-                            : isActive
-                              ? "text-teal-700"
-                              : "text-teal-700 group-hover:text-teal-900"
+                          item.emergency > 0
+                            ? "text-alert group-hover:text-alert/80"
+                            : isDark
+                              ? isActive
+                                ? "text-white"
+                                : "text-teal-200 group-hover:text-white"
+                              : isActive
+                                ? "text-teal-700"
+                                : "text-teal-700 group-hover:text-teal-900"
                         }
 
                         group-hover:scale-105
                       `}
                     />
 
+                    {item.emergency > 0 && collapsed && (
+                      <span className="absolute right-3 top-3 h-2.5 w-2.5 rounded-full bg-alert ring-1 ring-white/80" />
+                    )}
 
                     {/* =====================================
                         LABEL
@@ -650,6 +678,13 @@ export default function Sidebar({ open, onClose }) {
                     {!collapsed && (
                       <span className="flex-1 truncate">
                         {item.label}
+                      </span>
+                    )}
+
+                    {item.emergency > 0 && !collapsed && (
+                      <span className="inline-flex items-center gap-1 rounded-full bg-alert/10 text-alert border border-alert/30 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-[0.08em]">
+                        <Siren size={12} strokeWidth={2} />
+                        {item.emergency > 1 ? `${item.emergency} emergencies` : "Emergency"}
                       </span>
                     )}
 
