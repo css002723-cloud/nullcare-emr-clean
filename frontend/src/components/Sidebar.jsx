@@ -1,4 +1,5 @@
 import { NavLink } from "react-router-dom";
+import { useState } from "react";
 import {
   LayoutDashboard,
   Users,
@@ -23,6 +24,8 @@ import {
   Package,
   Settings as SettingsIcon,
   CalendarDays,
+  ChevronsLeft,
+  ChevronsRight,
 } from "lucide-react";
 
 import { useAuth } from "../context/AuthContext";
@@ -281,6 +284,7 @@ const NAV_BY_ROLE = {
 export default function Sidebar({ open, onClose }) {
   const { user, logout } = useAuth();
   const { theme, toggleTheme } = useTheme();
+  const [collapsed, setCollapsed] = useState(false);
 
   const { unreadCount } = useUnreadMessages();
   const { scheduledCount } = useMyAppointments();
@@ -352,6 +356,7 @@ export default function Sidebar({ open, onClose }) {
 
           w-64
           shrink-0
+          ${collapsed ? "md:w-20" : "md:w-64"}
 
           h-screen
           md:h-auto
@@ -424,27 +429,44 @@ export default function Sidebar({ open, onClose }) {
               "
             />
 
-            <p
-              className={`
-                mt-2
+            {!collapsed && (
+              <p
+                className={`
+                  mt-2
 
-                text-[11px]
+                  text-[11px]
 
-                font-medium
+                  font-medium
 
-                tracking-wide
+                  tracking-wide
 
-                ${
-                  isDark
-                    ? "text-teal-200/70"
-                    : "text-teal-700/70"
-                }
-              `}
-            >
-              MUST Teaching Hospital EMR
-            </p>
+                  ${
+                    isDark
+                      ? "text-teal-200/70"
+                      : "text-teal-700/70"
+                  }
+                `}
+              >
+                MUST Teaching Hospital EMR
+              </p>
+            )}
 
           </div>
+
+          <button
+            type="button"
+            onClick={() => setCollapsed((value) => !value)}
+            aria-label={collapsed ? "Expand sidebar" : "Collapse sidebar"}
+            className={
+              `hidden md:inline-flex h-8 w-8 rounded-lg items-center justify-center transition-colors ${
+                isDark
+                  ? "text-teal-200 hover:bg-teal-800 hover:text-white"
+                  : "text-teal-700 hover:bg-teal-50 hover:text-teal-900"
+              }`
+            }
+          >
+            {collapsed ? <ChevronsRight size={18} /> : <ChevronsLeft size={18} />}
+          </button>
 
           {/* Mobile close */}
           <button
@@ -510,17 +532,19 @@ export default function Sidebar({ open, onClose }) {
                 key={item.to}
                 to={item.to}
                 onClick={onClose}
+                title={collapsed ? item.label : undefined}
+                aria-label={collapsed ? item.label : undefined}
                 className={({ isActive }) => `
                   group
                   relative
 
                   flex
                   items-center
-                  gap-3
+                  ${collapsed ? "justify-center" : "gap-3"}
 
                   rounded-xl
 
-                  px-3
+                  ${collapsed ? "px-0" : "px-3"}
                   py-2.5
 
                   text-sm
@@ -623,15 +647,17 @@ export default function Sidebar({ open, onClose }) {
                     {/* =====================================
                         LABEL
                     ====================================== */}
-                    <span className="flex-1 truncate">
-                      {item.label}
-                    </span>
+                    {!collapsed && (
+                      <span className="flex-1 truncate">
+                        {item.label}
+                      </span>
+                    )}
 
 
                     {/* =====================================
                         BADGE
                     ====================================== */}
-                    {item.badge > 0 && (
+                    {item.badge > 0 && !collapsed && (
                       <span
                         className={`
                           min-w-[1.25rem]
@@ -707,14 +733,15 @@ export default function Sidebar({ open, onClose }) {
           <NavLink
             to="/settings"
             onClick={onClose}
+            title={collapsed ? "Settings" : undefined}
             className={({ isActive }) => `
               flex
               items-center
-              gap-2.5
+              ${collapsed ? "justify-center" : "gap-2.5"}
 
               rounded-lg
 
-              px-3
+              ${collapsed ? "px-0" : "px-3"}
               py-2
 
               text-sm
@@ -756,9 +783,11 @@ export default function Sidebar({ open, onClose }) {
               className="shrink-0"
             />
 
-            <span>
-              Settings
-            </span>
+            {!collapsed && (
+              <span>
+                Settings
+              </span>
+            )}
 
           </NavLink>
 
@@ -768,6 +797,7 @@ export default function Sidebar({ open, onClose }) {
           ==================================================== */}
           <button
             onClick={toggleTheme}
+            title={collapsed ? (isDark ? "Switch to light mode" : "Switch to dark mode") : undefined}
             aria-label={
               isDark
                 ? "Switch to light mode"
@@ -778,12 +808,12 @@ export default function Sidebar({ open, onClose }) {
 
               flex
               items-center
-              justify-between
+              ${collapsed ? "justify-center" : "justify-between"}
               gap-2
 
               rounded-lg
 
-              px-3
+              ${collapsed ? "px-0" : "px-3"}
               py-2
 
               text-sm
@@ -807,7 +837,7 @@ export default function Sidebar({ open, onClose }) {
             `}
           >
 
-            <span className="flex items-center gap-2.5">
+            <span className={collapsed ? "flex items-center justify-center" : "flex items-center gap-2.5"}>
 
               {isDark ? (
                 <Sun
@@ -821,9 +851,11 @@ export default function Sidebar({ open, onClose }) {
                 />
               )}
 
-              {isDark
-                ? "Light mode"
-                : "Dark mode"}
+              {!collapsed && (
+                isDark
+                  ? "Light mode"
+                  : "Dark mode"
+              )}
 
             </span>
 
@@ -897,7 +929,9 @@ export default function Sidebar({ open, onClose }) {
 
               flex
               items-center
-              gap-3
+              ${collapsed ? "justify-center" : "gap-3"}
+
+              ${collapsed ? "flex-col" : "flex-row"}
 
               ${
                 isDark
@@ -911,6 +945,7 @@ export default function Sidebar({ open, onClose }) {
                   `
               }
             `}
+            title={collapsed ? user?.full_name || "User" : undefined}
           >
 
             {/* Avatar */}
@@ -952,50 +987,51 @@ export default function Sidebar({ open, onClose }) {
             </div>
 
 
-            {/* User details */}
-            <div className="min-w-0 flex-1">
+            {!collapsed && (
+              <div className="min-w-0 flex-1">
 
-              <p
-                className={`
-                  text-sm
+                <p
+                  className={`
+                    text-sm
 
-                  font-semibold
+                    font-semibold
 
-                  truncate
+                    truncate
 
-                  leading-tight
+                    leading-tight
 
-                  ${
-                    isDark
-                      ? "text-white"
-                      : "text-teal-900"
-                  }
-                `}
-              >
-                {user?.full_name || "User"}
-              </p>
+                    ${
+                      isDark
+                        ? "text-white"
+                        : "text-teal-900"
+                    }
+                  `}
+                >
+                  {user?.full_name || "User"}
+                </p>
 
-              <p
-                className={`
-                  text-xs
+                <p
+                  className={`
+                    text-xs
 
-                  capitalize
+                    capitalize
 
-                  truncate
+                    truncate
 
-                  mt-0.5
+                    mt-0.5
 
-                  ${
-                    isDark
-                      ? "text-teal-200/70"
-                      : "text-teal-700/70"
-                  }
-                `}
-              >
-                {user?.role?.replace("_", " ") || "User"}
-              </p>
+                    ${
+                      isDark
+                        ? "text-teal-200/70"
+                        : "text-teal-700/70"
+                    }
+                  `}
+                >
+                  {user?.role?.replace("_", " ") || "User"}
+                </p>
 
-            </div>
+              </div>
+            )}
 
           </div>
 
@@ -1005,6 +1041,8 @@ export default function Sidebar({ open, onClose }) {
           ==================================================== */}
           <button
             onClick={logout}
+            title={collapsed ? "Sign out" : undefined}
+            aria-label="Sign out"
             className={`
               w-full
 
@@ -1013,8 +1051,8 @@ export default function Sidebar({ open, onClose }) {
               justify-center
               gap-2
 
+              ${collapsed ? "px-0" : "px-3"}
               py-2
-              px-3
 
               rounded-lg
 
@@ -1046,7 +1084,7 @@ export default function Sidebar({ open, onClose }) {
               strokeWidth={2.25}
             />
 
-            Sign out
+            {!collapsed && "Sign out"}
 
           </button>
 
