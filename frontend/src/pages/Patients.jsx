@@ -16,6 +16,7 @@ import api from "../services/api";
 import { Card, Input, Button, Badge, EmptyState, LoadingRow, calcAge } from "../components/ui";
 import PageHeader from "../components/PageHeader";
 import { getWithCache } from "../offline/offlineResource";
+import { useAuth } from "../context/AuthContext";
 
 const TABS = [
   { value: "active", label: "Not completed" },
@@ -44,6 +45,7 @@ export default function Patients() {
   const [fromCache, setFromCache] = useState(false);
 
   // Sorting state
+  const { hasRole } = useAuth();
   const [sortField, setSortField] = useState("date"); // 'name' | 'date' | 'id'
   const [sortOrder, setSortOrder] = useState("desc"); // 'asc' | 'desc'
 
@@ -102,7 +104,7 @@ export default function Patients() {
         icon={Users}
         title="Patients"
         subtitle="Master patient index — search by name, patient ID, phone, or national ID"
-        action={<Button onClick={() => navigate("/reception")} icon={UserPlus}>Register new patient</Button>}
+        action={hasRole('reception', 'admin') ? <Button onClick={() => navigate("/reception")} icon={UserPlus}>Register new patient</Button> : null}
       />
 
       {/* Tabs */}
