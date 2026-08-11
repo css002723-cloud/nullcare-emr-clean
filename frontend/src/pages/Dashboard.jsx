@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import {
   AreaChart,
   Area,
@@ -28,7 +28,7 @@ import {
   ArrowUpRight,
 } from "lucide-react";
 import api from "../services/api";
-import { Card, Badge, LoadingRow } from "../components/ui";
+import { Card, Badge, Button, LoadingRow } from "../components/ui";
 import { useAuth } from "../context/AuthContext";
 import { Link } from "react-router-dom";
 
@@ -41,7 +41,9 @@ const COLOR_PALETTE = [
 ];
 
 export default function Dashboard() {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
+  const [profileMenuOpen, setProfileMenuOpen] = useState(false);
+  const menuRef = useRef(null);
 
   const [data, setData] = useState(null);
   const [error, setError] = useState(false);
@@ -58,6 +60,22 @@ export default function Dashboard() {
       .then((res) => setMessages(res.data.messages.slice(0, 5)))
       .catch(() => setMessages([]));
   }, []);
+
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (menuRef.current && !menuRef.current.contains(event.target)) {
+        setProfileMenuOpen(false);
+      }
+    }
+
+    if (profileMenuOpen) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [profileMenuOpen]);
 
   if (error) {
     return (
@@ -126,15 +144,37 @@ export default function Dashboard() {
             </span>
           </div>
 
-          <div className="flex items-center gap-2.5 pl-2 border-l border-line">
+            <div ref={menuRef} className="relative flex items-center gap-2.5 pl-2 border-l border-line">
 
-            <div className="h-8 w-8 rounded-full bg-teal-500/10 text-teal-600 font-bold flex items-center justify-center text-xs ring-2 ring-teal-500/20">
-              {user?.full_name?.charAt(0) || "U"}
-            </div>
+            <button
+              type="button"
+              className="flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-medium text-ink/80 hover:bg-surface-alt transition"
+              onClick={() => setProfileMenuOpen((open) => !open)}
+            >
+              <div className="h-8 w-8 rounded-full bg-teal-500/10 text-teal-600 font-bold flex items-center justify-center text-xs ring-2 ring-teal-500/20">
+                {user?.full_name?.charAt(0) || "U"}
+              </div>
+              <span className="hidden sm:inline">{user?.full_name}</span>
+            </button>
 
-            <span className="text-xs font-medium text-ink/80 hidden sm:inline">
-              {user?.full_name}
-            </span>
+            {profileMenuOpen && (
+              <div className="absolute right-0 top-full mt-2 w-48 rounded-2xl border border-line bg-surface shadow-card py-2">
+                <Link
+                  to="/settings"
+                  className="block px-4 py-2 text-sm text-ink/80 hover:bg-surface-alt"
+                  onClick={() => setProfileMenuOpen(false)}
+                >
+                  Profile
+                </Link>
+                <button
+                  type="button"
+                  onClick={logout}
+                  className="w-full text-left px-4 py-2 text-sm text-ink/80 hover:bg-surface-alt"
+                >
+                  Logout
+                </button>
+              </div>
+            )}
 
           </div>
         </div>
