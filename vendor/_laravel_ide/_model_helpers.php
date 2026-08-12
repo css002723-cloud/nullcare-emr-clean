@@ -9566,6 +9566,7 @@ namespace App\Models {
    * @property int $id
    * @property-read \App\Models\Encounter $encounter
    * @property-read \App\Models\Patient $patient
+   * @property-read \App\Models\User $prescribedBy
    * @property-read \Illuminate\Database\Eloquent\Collection<int, \App\Models\MedicationAdministration> $administrations
    * @property-read int|null $administrations_count
    * @method static \Illuminate\Database\Eloquent\Builder<Prescription>|Prescription whereId($value)

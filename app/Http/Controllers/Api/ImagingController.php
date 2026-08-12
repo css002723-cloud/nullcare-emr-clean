@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Models\ClinicalNote;
 use App\Models\Encounter;
 use App\Models\ImagingOrder;
 use App\Models\ImagingReport;
@@ -28,7 +29,7 @@ class ImagingController extends Controller
      */
     public function index(Request $request)
     {
-        $query = ImagingOrder::query();
+        $query = ImagingOrder::query()->with(['patient', 'encounter']);
 
         if ($request->filled('status')) {
             $query->where('status', $request->query('status'));
@@ -36,12 +37,36 @@ class ImagingController extends Controller
         if ($request->filled('encounter_id')) {
             $query->where('encounter_id', $request->query('encounter_id'));
         }
+        if ($request->filled('patient_id')) {
+            $query->where('patient_id', $request->query('patient_id'));
+        }
 
         $orders = $query->latest()->get();
 
         $result = $orders->map(function (ImagingOrder $o) {
             $d = $o->toArray();
             $d['report'] = ImagingReport::where('imaging_order_id', $o->id)->first();
+
+            $patient = $o->patient;
+            $d['patient_name'] = $patient ? "{$patient->given_name} {$patient->family_name}" : null;
+            $d['patient_uid'] = $patient?->patient_uid;
+            $d['mrn'] = $o->encounter?->mrn;
+
+            $consultNote = ClinicalNote::where('encounter_id', $o->encounter_id)
+                ->where('note_type', 'consult')
+                ->latest()
+                ->first();
+
+            if (! $consultNote) {
+                $consultNote = ClinicalNote::where('encounter_id', $o->encounter_id)
+                    ->where('note_type', 'history_physical')
+                    ->latest()
+                    ->first();
+            }
+
+            $d['consultation_note'] = $consultNote?->body
+                ?: $consultNote?->examination_findings
+                ?: $consultNote?->presenting_complaint;
 
             return $d;
         });

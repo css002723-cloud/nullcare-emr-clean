@@ -32,6 +32,11 @@ class Prescription extends Model
         return $this->belongsTo(Patient::class);
     }
 
+    public function prescribedBy()
+    {
+        return $this->belongsTo(User::class, 'prescribed_by');
+    }
+
     public function administrations()
     {
         return $this->hasMany(MedicationAdministration::class);

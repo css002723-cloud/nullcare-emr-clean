@@ -132,6 +132,12 @@ function ImagingRow({ order, canReport, canReview, onSaved }) {
         <div>
           <p className="font-semibold">{MODALITIES[order.modality] || order.modality} — {order.study_description}</p>
           <p className="text-xs text-ink/50 mrn-mono">Accession {order.accession_number}</p>
+          {order.patient_name && (
+            <p className="text-xs text-ink/50">Patient: {order.patient_name} {order.mrn ? `· ${order.mrn}` : ''}</p>
+          )}
+          {order.patient_uid && !order.mrn && (
+            <p className="text-xs text-ink/50">Patient UID: {order.patient_uid}</p>
+          )}
           {order.safety_checklist_notes?.includes("SYSTEM FLAG") && (
             <Badge tone="warning" className="mt-1">Pregnancy status not confirmed</Badge>
           )}
@@ -146,6 +152,20 @@ function ImagingRow({ order, canReport, canReview, onSaved }) {
           )}
         </div>
       </div>
+
+      {order.consultation_note && (
+        <div className="mt-3 text-sm bg-surface-alt rounded-lg p-3 border border-line">
+          <p className="font-semibold text-ink/70">Consultation note</p>
+          <p className="mt-1 text-ink/80 whitespace-pre-wrap">{order.consultation_note}</p>
+        </div>
+      )}
+
+      {order.report?.is_critical_finding && (
+        <div className="mt-3 rounded-lg bg-alert/10 border border-alert/30 p-3 text-sm text-alert">
+          <p className="font-semibold">Critical imaging finding</p>
+          <p className="mt-1 text-ink/80">This report has been flagged as critical and should be reviewed by the ordering clinician immediately.</p>
+        </div>
+      )}
 
       {order.report && (
         <div className="mt-2 text-sm bg-surface-alt rounded-lg p-2">

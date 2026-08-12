@@ -15,6 +15,8 @@ export default function PatientDetail() {
   const [patient, setPatient] = useState(null);
   const [encounters, setEncounters] = useState([]);
   const [labOrders, setLabOrders] = useState([]);
+  const [imagingOrders, setImagingOrders] = useState([]);
+  const [prescriptions, setPrescriptions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showAllergyForm, setShowAllergyForm] = useState(false);
   const [allergy, setAllergy] = useState({ substance: "", reaction: "", severity: "mild" });
@@ -30,10 +32,18 @@ export default function PatientDetail() {
       const hRes = await api.get(`/patients/${pRes.data.id}/history`);
       setEncounters(hRes.data);
       if (hasRole("doctor")) {
-        const labsRes = await api.get("/lab/orders", { params: { patient_id: pRes.data.id } });
+        const [labsRes, imagingRes, prescriptionsRes] = await Promise.all([
+          api.get("/lab/orders", { params: { patient_id: pRes.data.id } }),
+          api.get("/imaging/orders", { params: { patient_id: pRes.data.id } }),
+          api.get("/pharmacy/prescriptions", { params: { patient_id: pRes.data.id } }),
+        ]);
         setLabOrders(labsRes.data);
+        setImagingOrders(imagingRes.data);
+        setPrescriptions(prescriptionsRes.data);
       } else {
         setLabOrders([]);
+        setImagingOrders([]);
+        setPrescriptions([]);
       }
     } catch {
       // offline with nothing cached — leave blank, page will show empty state
@@ -183,35 +193,105 @@ export default function PatientDetail() {
       {hasRole("doctor") && (
         <Card>
           <div className="flex items-center justify-between mb-3">
-            <p className="font-display text-lg">Laboratory results</p>
-            <p className="text-xs text-ink/50">Only doctors can view lab results here.</p>
+            <p className="font-display text-lg">Laboratory and imaging</p>
+            <p className="text-xs text-ink/50">Only doctors can view these results here.</p>
           </div>
-          {labOrders.length === 0 ? (
-            <p className="text-sm text-ink/40">No lab orders found for this patient.</p>
+
+          <div className="space-y-4">
+            <div>
+              <p className="font-semibold mb-2">Laboratory results</p>
+              {labOrders.length === 0 ? (
+                <p className="text-sm text-ink/40">No lab orders found for this patient.</p>
+              ) : (
+                <div className="space-y-3">
+                  {labOrders.map((order) => (
+                    <div key={order.id} className="rounded-2xl border border-line p-4 bg-surface-alt">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-semibold">{order.loinc_display || order.test_code}</p>
+                          <p className="text-xs text-ink/50 mrn-mono">LOINC {order.loinc_code || "n/a"} · barcode {order.barcode}</p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Badge tone={order.status === "resulted" ? "success" : "muted"}>{order.status}</Badge>
+                          {order.result?.is_critical && <Badge tone="critical">Critical</Badge>}
+                          {order.result?.is_abnormal && !order.result?.is_critical && <Badge tone="warning">Abnormal</Badge>}
+                        </div>
+                      </div>
+                      {order.result ? (
+                        <div className="mt-3 grid gap-2 text-sm text-ink/70">
+                          <p><span className="font-semibold text-ink">Result:</span> {order.result.result_value} {order.result.unit || ""}</p>
+                          {order.result.reference_range && <p><span className="font-semibold text-ink">Reference range:</span> {order.result.reference_range}</p>}
+                          {order.result.interpretation && <p><span className="font-semibold text-ink">Interpretation:</span> {order.result.interpretation}</p>}
+                        </div>
+                      ) : (
+                        <p className="mt-3 text-sm text-ink/50">No result recorded yet for this test.</p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div>
+              <p className="font-semibold mb-2">Imaging results</p>
+              {imagingOrders.length === 0 ? (
+                <p className="text-sm text-ink/40">No imaging studies found for this patient.</p>
+              ) : (
+                <div className="space-y-3">
+                  {imagingOrders.map((order) => (
+                    <div key={order.id} className="rounded-2xl border border-line p-4 bg-surface-alt">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-semibold">{order.modality} — {order.study_description}</p>
+                          <p className="text-xs text-ink/50 mrn-mono">Accession {order.accession_number}</p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Badge tone={order.status === "reported" ? "success" : "muted"}>{order.status}</Badge>
+                        </div>
+                      </div>
+                      {order.report ? (
+                        <div className="mt-3 text-sm text-ink/70 space-y-2">
+                          <p><span className="font-semibold text-ink">Findings:</span> {order.report.findings || "—"}</p>
+                          <p><span className="font-semibold text-ink">Impression:</span> {order.report.impression || "—"}</p>
+                          {order.report.is_critical_finding && <Badge tone="critical">Critical finding</Badge>}
+                        </div>
+                      ) : (
+                        <p className="mt-3 text-sm text-ink/50">No report written yet for this imaging order.</p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </Card>
+      )}
+
+      {hasRole("doctor") && (
+        <Card>
+          <div className="flex items-center justify-between mb-3">
+            <p className="font-display text-lg">Prescribed medications</p>
+            <p className="text-xs text-ink/50">Only doctors can view prescriptions here.</p>
+          </div>
+          {prescriptions.length === 0 ? (
+            <p className="text-sm text-ink/40">No prescriptions found for this patient.</p>
           ) : (
             <div className="space-y-3">
-              {labOrders.map((order) => (
-                <div key={order.id} className="rounded-2xl border border-line p-4 bg-surface-alt">
+              {prescriptions.map((rx) => (
+                <div key={rx.id} className="rounded-2xl border border-line p-4 bg-surface-alt">
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
-                      <p className="text-sm font-semibold">{order.loinc_display || order.test_code}</p>
-                      <p className="text-xs text-ink/50 mrn-mono">LOINC {order.loinc_code || "n/a"} · barcode {order.barcode}</p>
+                      <p className="text-sm font-semibold">{rx.drug_name}{rx.formulation ? ` — ${rx.formulation}` : ''}</p>
+                      <p className="text-xs text-ink/50 mrn-mono">{rx.dose || 'Dose not specified'} · {rx.route || 'Route not specified'} · {rx.frequency || 'Frequency not specified'} · {rx.duration || 'Duration not specified'}</p>
                     </div>
                     <div className="flex items-center gap-2">
-                      <Badge tone={order.status === "resulted" ? "success" : "muted"}>{order.status}</Badge>
-                      {order.result?.is_critical && <Badge tone="critical">Critical</Badge>}
-                      {order.result?.is_abnormal && !order.result?.is_critical && <Badge tone="warning">Abnormal</Badge>}
+                      <Badge tone={rx.status === 'dispensed' ? 'success' : 'muted'}>{rx.status}</Badge>
                     </div>
                   </div>
-                  {order.result ? (
-                    <div className="mt-3 grid gap-2 text-sm text-ink/70">
-                      <p><span className="font-semibold text-ink">Result:</span> {order.result.result_value} {order.result.unit || ""}</p>
-                      {order.result.reference_range && <p><span className="font-semibold text-ink">Reference range:</span> {order.result.reference_range}</p>}
-                      {order.result.interpretation && <p><span className="font-semibold text-ink">Interpretation:</span> {order.result.interpretation}</p>}
-                    </div>
-                  ) : (
-                    <p className="mt-3 text-sm text-ink/50">No result recorded yet for this test.</p>
-                  )}
+                  <div className="mt-3 text-sm text-ink/70 space-y-1">
+                    {rx.prescribed_by_name && <p><span className="font-semibold text-ink">Prescribed by:</span> {rx.prescribed_by_name}</p>}
+                    {rx.cds_alerts && <p><span className="font-semibold text-ink">Safety alerts:</span> {rx.cds_alerts}</p>}
+                  </div>
                 </div>
               ))}
             </div>

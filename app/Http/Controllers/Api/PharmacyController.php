@@ -22,7 +22,7 @@ class PharmacyController extends Controller
      */
     public function indexPrescriptions(Request $request)
     {
-        $query = Prescription::with('patient.allergies');
+        $query = Prescription::with(['patient.allergies', 'prescribedBy']);
 
         if ($request->filled('status')) {
             $query->where('status', $request->query('status'));
@@ -30,11 +30,15 @@ class PharmacyController extends Controller
         if ($request->filled('encounter_id')) {
             $query->where('encounter_id', $request->query('encounter_id'));
         }
+        if ($request->filled('patient_id')) {
+            $query->where('patient_id', $request->query('patient_id'));
+        }
 
         $prescriptions = $query->latest()->get()->map(function (Prescription $prescription) {
             $payload = $prescription->toArray();
             $payload['patient_name'] = $prescription->patient?->full_name;
             $payload['patient_uid'] = $prescription->patient?->patient_uid;
+            $payload['prescribed_by_name'] = $prescription->prescribedBy?->full_name;
             $payload['patient_allergies'] = $prescription->patient?->allergies?->map(fn (Allergy $allergy) => [
                 'substance' => $allergy->substance,
                 'reaction' => $allergy->reaction,
