@@ -290,7 +290,21 @@ export default function PatientDetail() {
                   </div>
                   <div className="mt-3 text-sm text-ink/70 space-y-1">
                     {rx.prescribed_by_name && <p><span className="font-semibold text-ink">Prescribed by:</span> {rx.prescribed_by_name}</p>}
-                    {rx.cds_alerts && <p><span className="font-semibold text-ink">Safety alerts:</span> {rx.cds_alerts}</p>}
+                    {rx.cds_alerts && (() => {
+                      try {
+                        const alerts = JSON.parse(rx.cds_alerts);
+                        return Array.isArray(alerts) && alerts.length > 0 ? (
+                          <div className="space-y-1">
+                            <p className="font-semibold text-ink">Safety alerts:</p>
+                            {alerts.map((alert, i) => (
+                              <p key={i} className="text-xs text-alert bg-alert/5 border border-alert/20 rounded px-2 py-1">{alert}</p>
+                            ))}
+                          </div>
+                        ) : null;
+                      } catch {
+                        return <p><span className="font-semibold text-ink">Safety alerts:</span> {rx.cds_alerts}</p>;
+                      }
+                    })()}
                   </div>
                 </div>
               ))}
