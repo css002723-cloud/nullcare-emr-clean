@@ -24,7 +24,7 @@ export default function ForcedPasswordChange() {
     }
     setSaving(true);
     try {
-      await api.post("/auth/change-password", { new_password: newPassword });
+      await api.post("/auth/change-password-self", { new_password: newPassword });
       await refreshUser();
     } catch (err) {
       setError(err.response?.data?.message || "Couldn't update your password — please try again.");
