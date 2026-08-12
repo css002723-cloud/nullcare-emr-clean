@@ -112,7 +112,7 @@ export default function Consultation() {
                 <button
                   key={enc.id}
                   onClick={() => openEncounter(enc.id)}
-                  className="text-left rounded-lg p-3 bg-white border border-alert/20 hover:bg-alert/10 transition"
+                  className="text-left rounded-lg p-3 bg-surface border border-alert/20 hover:bg-alert/10 transition"
                 >
                   <div className="flex items-center justify-between gap-3">
                     <div>
@@ -141,7 +141,7 @@ export default function Consultation() {
       {selected && (
         <div className="fixed inset-0 z-50 flex items-center justify-center">
           <div className="absolute inset-0 bg-black/40" onClick={() => setSelected(null)} />
-          <div className="relative max-w-lg w-full p-6 bg-white rounded-lg shadow-lg z-10">
+          <div className="relative max-w-lg w-full p-6 bg-surface border border-line rounded-lg shadow-lg z-10">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <h3 className="font-display text-lg">
